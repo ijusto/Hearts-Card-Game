@@ -34,6 +34,7 @@ class Table:
 
 
     def updateGeneralPoints(self):
+        # if one deal just happened
         if(self.trick_id % 13):
             if(self.all_points()):
                 for player in self.players:
@@ -42,6 +43,10 @@ class Table:
             else:
                 for player in self.players:
                     self.generalPoints[player] += self.dealPoints[player]
+
+            # reset deal points
+            for player in self.players:
+                self.dealPoints[player] = 0
 
 
     def updateDealPoints(self):

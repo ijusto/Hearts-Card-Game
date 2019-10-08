@@ -5,7 +5,6 @@ class Player():
     def __init__(self, hand):
         self.username = ''
         self.hand = self.redistributeHand(hand)
-        self.vel = 3
         # The first to play in the round
         self.isEldest = False
         # The last to play in the round
