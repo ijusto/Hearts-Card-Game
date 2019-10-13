@@ -9,18 +9,20 @@ class Server:
     party = 0
     newUserConnected = False
     clientDisconnected = False
+
     # individual players
-    soloPlayersConnected = {}  # key: (client_socket, client_address), value: [username, cc, party]
+    soloPlayersConnected = {}  # key: (client_socket, client_address), value: (username, cc)
     # ipv4 tcp socket
     serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    parties = {}  # key: party_number, value: list of dictionaries of players in parties
+
     ccs = []
     connections = []
     # players in parties
     numberOfParties = 0
-    parties = {}  # key: party_number, value: list of dictionaries of players in parties
 
     def __init__(self):
-        self.serverSocket.bind(('0.0.0.0', 10001))
+        self.serverSocket.bind(('0.0.0.0', 10002))
         self.serverSocket.listen(1)
         print("Waiting for a connection, Server Started")
         self.numberOfClients = 0
@@ -28,24 +30,41 @@ class Server:
     def playerReady(self, user_socket):
         user_socket.send(bytes("Menu:\n[R] Rules\n[S] Skip Rules\n", 'utf-8'))
         while True:
-            resp = user_socket.recv(1024).decode()
+            resp = user_socket.recv(1024).decode().upper()
             if resp == "R":
                 self.rulesMenu(user_socket)
                 break
-            elif resp != "S":
+            elif resp == "S":
                 break
             else:
-                user_socket.send(bytes("Invalid choice. Try again.\n", 'utf-8'))
+                user_socket.send(bytes("Invalid choice 4. Try again.\n", 'utf-8'))
         return True
 
-    # TODO : Add Rules
     def rulesMenu(self, user_socket):
-        user_socket.send(bytes("Rules:\nThis needs development.\n", 'utf-8'))
-        user_socket.send(bytes("[Ok]", 'utf-8'))
+        rules = "Card rank (highest first):	A K Q J 10 9 8 7 6 5 4 3 2, no trump\n" \
+                "Played Clockwise.\n" \
+                "The overall objective is to be the player with the fewest points by the end of the game.\n" \
+                "13 cards are dealt to each player (4 players)\n" \
+                "Before each hand begins, each player chooses three cards, and passes them to another player.\n" \
+                "It rotates passing through four deals; on the first deal, players pass to the left, the second deal " \
+                "to the right, the third across the table.\nOn the fourth deal no cards are passed; the cycle of four " \
+                "deals is then repeated.\n" \
+                "Players must follow suit;\n" \
+                "If they are not able to do so, they can play any card\n" \
+                "The player holding the 2 of clubs must lead it to begin the first trick\n" \
+                "No penalty card may be played on the first trick (hearts or Queen of spades)\n" \
+                "Hearts cannot be led until they have been \"broken\" (discarded on the lead of another suit), unless" \
+                " the player who must lead has nothing but Hearts remaining in hand.\n" \
+                "Each Heart taken in a trick scores one penalty point against the player winning the trick, and " \
+                "taking Queen of spades costs 13 penalty points. There are thus 26 penalty points in each deal.\n" \
+                "The game usually ends when one player reaches or exceeds 100 points.\nIf one player takes all the " \
+                "penalty cards on one deal, that player's score remains unchanged while 26 penalty points are added " \
+                "to the scores of each of the other players.\n"
+        user_socket.send(bytes(f"Rules:\n{rules}[Ok]\n", 'utf-8'))
         while True:
             if user_socket.recv(1024).decode().upper() == "OK":
                 break
-            user_socket.send(bytes("Invalid choice. Try again.\n", 'utf-8'))
+            user_socket.send(bytes("Invalid choice 5. Try again.\n", 'utf-8'))
 
     def showSoloPlayers(self, user_socket, user_cc):
         print_title = True
@@ -56,38 +75,201 @@ class Server:
                     print_title = False
                 user_socket.send(bytes(un + "\n", 'utf-8'))
 
-    def showParties(self, user_socket, user_cc):
+    def showParties(self, user_socket, user_cc, show):
         in_party = False
         print_title = True
-        for party_list in self.parties.values():
+        curr_user_party = []
+        p_number = None
+        for party_number, party_list in self.parties.items():
             party_lobby = []
             for user in party_list:
-                for (_, _), (u_name, u_cc) in user.items():
+                for (u_socket, _), (u_name, u_cc) in user.items():
                     if user_cc == u_cc:
                         in_party = True
+                        curr_user_party = party_list
+                        p_number = party_number
                     party_lobby.append(u_name)
             if len(party_lobby) != 0:
-                if print_title:
-                    user_socket.send(bytes("Parties:\n", 'utf-8'))
-                    print_title = False
-                user_socket.send(bytes(str(party_lobby) + "\n", 'utf-8'))
-        return in_party
+                if show:
+                    if print_title:
+                        user_socket.send(bytes("Parties:\n", 'utf-8'))
+                        print_title = False
+                    user_socket.send(bytes(str(party_lobby) + "\n", 'utf-8'))
+        return in_party, curr_user_party, p_number
 
-    def lobbyMenu(self, user_socket, user_cc):
-        user_socket.send(bytes("Lobby:\n", 'utf-8'))
+    def updateAllLobbyMenu(self, new_client_socket, new_client_username):
+        for (u_socket, u_add), (u_name, u_cc) in self.soloPlayersConnected.items():
+            if new_client_socket != u_socket and new_client_socket is not None:
+                u_socket.send(bytes(new_client_username + " joined the lobby\n", 'utf-8'))
+            u_socket.send(bytes("Lobby:\n", 'utf-8'))
+            self.showSoloPlayers(u_socket, u_cc)
+            _, _, _ = self.showParties(u_socket, u_cc, True)
 
-        self.showSoloPlayers(user_socket, user_cc)
+        for party_number, party_list in self.parties.items():
+            for user in party_list:
+                for (u_socket, u_add), (u_name, u_cc) in user.items():
+                    if new_client_socket != u_socket and new_client_socket is not None:
+                        u_socket.send(bytes(new_client_username + " joined the lobby\n", 'utf-8'))
+                    u_socket.send(bytes("Lobby:\n", 'utf-8'))
+                    self.showSoloPlayers(u_socket, u_cc)
+                    _, _, _ = self.showParties(u_socket, u_cc, True)
 
-        in_party = self.showParties(user_socket, user_cc)
+    def lobbyOptions(self, curr_user_info):
+        (curr_user_socket, curr_user_address), (curr_user_name, curr_user_cc) = curr_user_info
+        curr_user_dict = {(curr_user_socket, curr_user_address): (curr_user_name, curr_user_cc)}
 
-        if in_party:
-            user_socket.send(bytes("\nInvite a player (using its username) to your party", 'utf-8'))
-            # verify if a member is in a party
-            # if self.verifyPartyMember(userCc):
-            user_socket.send(bytes("\nWrite LEAVE if you want to leave the party\n", 'utf-8'))
+        in_party, curr_user_party, p_number = self.showParties(curr_user_socket, curr_user_cc, False)
+
+        # player in party
+        if in_party and curr_user_party != [] and p_number is not None:
+            while True:
+                curr_user_socket.send(bytes("[username] Invite a player to your party (you can only invite solo "
+                                            "players)\n", 'utf-8'))
+                curr_user_socket.send(bytes("[LEAVE] Leave party\n", 'utf-8'))
+
+                resp = curr_user_socket.recv(1024).decode().upper()
+                # if the player wants to leave the party
+                if resp == "LEAVE":
+                    if curr_user_dict in curr_user_party:
+                        # party must be deleted and players be status changed to solo players
+                        if len(curr_user_party) == 2:
+                            for user in curr_user_party:
+                                for (u_socket, u_address), (u_name, u_cc) in user.items():
+                                    if curr_user_socket != u_socket:
+                                        u_socket.send(bytes(curr_user_socket + " left the party, the party "
+                                                                                      "was deleted\n", 'utf-8'))
+                                        self.soloPlayersConnected.update({(u_socket, u_address): (u_name, u_cc)})
+                                        break
+                                curr_user_socket.send(bytes("You left the party\n", 'utf-8'))
+                                self.soloPlayersConnected.update(curr_user_dict)
+                                del self.parties[p_number]
+                                break
+
+                        # party still exists
+                        else:
+                            for user in curr_user_party:
+                                for (u_socket, u_address), (_, _) in user.items():
+                                    if curr_user_socket != u_socket:
+                                        u_socket.send(bytes(curr_user_name + " left the party\n", 'utf-8'))
+                            curr_user_party.remove(curr_user_dict)
+                            curr_user_socket.send(bytes("You left the party\n", 'utf-8'))
+                            self.soloPlayersConnected.update(curr_user_dict)
+
+                        # the player left the party - break while True
+                        break
+
+                # if the player wants to invite someone to its party
+                elif resp is not None:
+                    break_while = False
+                    for (u_sock, u_add), (u_n, u_cc) in self.soloPlayersConnected.items():
+                        # the player invited someone who exists - breaks while after everything done
+                        if resp == u_n and u_cc != curr_user_cc:
+                            u_info = (u_sock, u_add), (u_n, u_cc)
+                            if self.sendInvite(curr_user_info, u_info):
+                                self.acceptInvite(curr_user_info, u_info, p_number)
+                            else:
+                                (client_socket, _), (_, _) = curr_user_info
+                                client_socket.send(bytes(resp + " refused the invite", 'utf-8'))
+                            break_while = True
+                            break
+                        # the player invited someone who doesnt exists - while continues
+                        else:
+                            curr_user_socket.send(bytes("Invalid choice 1. Try again.\n", 'utf-8'))
+                            break
+                    if break_while:
+                        break
+
+        # player in solo queue
         else:
-            user_socket.send(bytes("\nRequest to join with someone (using its username). If you want to join a party, "
-                                   "use the username of someone belonging to the party\n", 'utf-8'))
+            while True:
+                curr_user_socket.send(bytes("[username] Request to join someone. If you want to join a party, "
+                                            "use the username of someone in the party\n", 'utf-8'))
+                resp = curr_user_socket.recv(1024).decode().upper()
+
+                if resp is not None:
+                    break_while = False
+                    # requested to join a solo player -> create a party
+                    for (u_sock, u_add), (u_n, u_cc) in self.soloPlayersConnected.items():
+                        if resp == u_n and resp != curr_user_name:
+                            u_info = (u_sock, u_add), (u_n, u_cc)
+                            if self.sendInvite(curr_user_info, u_info):
+                                p_number = None
+                                self.acceptInvite(curr_user_info, u_info, p_number)
+                            else:
+                                (client_socket, _), (_, _) = curr_user_info
+                                client_socket.send(bytes(resp + " refused the invite", 'utf-8'))
+                            break_while = True
+                            break
+
+                    # request to join party
+                    if not break_while:
+                        for party_num, users_list in self.parties.items():
+                            for user in users_list:
+                                for (u_sock, u_add), (u_n, u_cc) in user.items():
+                                    if resp == u_n and u_sock != curr_user_socket:
+                                        u_info = (u_sock, u_add), (u_n, u_cc)
+                                        if self.sendInvite(curr_user_info, u_info):
+                                            self.acceptInvite(curr_user_info, u_info, p_number)
+                                        else:
+                                            (client_socket, _), (_, _) = curr_user_info
+                                            client_socket.send(bytes(resp + " refused the invite", 'utf-8'))
+                                        break_while = True
+                                        break
+                                if break_while:
+                                    break
+                            if break_while:
+                                break
+
+                    if break_while:
+                        break
+                    # the player invited someone who doesnt exists - while continues
+                    else:
+                        curr_user_socket.send(bytes("Invalid choice 2. Try again.\n", 'utf-8'))
+
+    def sendInvite(self, who_invited_info, who_to_invite_info):
+        (_, _), (who_invited_name, who_invited_cc) = who_invited_info
+        (who_to_invite_socket, who_to_invite_add), (_, _) = who_to_invite_info
+        resp = ""
+        while resp != "Y" and resp != "N":
+            # Send invite to the player
+            who_to_invite_socket.send(bytes("Do you want to play with " + who_invited_name + "?[y/n]", "utf-8"))
+            resp = who_to_invite_socket.recv(1024).decode().upper()
+            # Player accepts the invite
+            if resp == "Y":
+                return True
+            # Player refuses the invite
+            elif resp == "N":
+                return False
+            else:
+                who_to_invite_socket.send(bytes("Invalid choice 3. Try again.\n", 'utf-8'))
+
+    def acceptInvite(self, who_invited_info, who_to_invite_info, party_number):
+        (who_invited_socket, who_invited_add), (who_invited_name, who_invited_cc) = who_invited_info
+        (who_to_invite_socket, who_to_invite_add), (who_to_invite_name, who_to_invite_cc) = who_to_invite_info
+
+        who_invited_socket.send(bytes(who_to_invite_name + " accepted the invite", 'utf-8'))
+
+        # accept invite from a player in a party
+        if party_number is not None:
+            self.parties[party_number].append({(who_to_invite_socket, who_to_invite_add):
+                                               (who_to_invite_name, who_to_invite_cc)})
+
+            # Remove the invited player from the list of players not in parties
+            del self.soloPlayersConnected[(who_to_invite_socket, who_to_invite_add)]
+
+        # accept invite to join a player in a new party
+        else:
+            self.numberOfParties += 1
+            self.parties.update({self.numberOfParties:
+                                     [{(who_to_invite_socket, who_to_invite_add):
+                                           (who_to_invite_name, who_to_invite_cc)}]})
+            self.parties.update({self.numberOfParties:
+                                     [{(who_invited_socket, who_invited_add): (who_invited_name, who_invited_cc)}]})
+
+            # Remove the invited player from the list of players not in parties
+            del self.soloPlayersConnected[(who_to_invite_socket, who_to_invite_add)]
+            # Remove the player who made the invite from the list of players not in parties
+            del self.soloPlayersConnected[(who_invited_socket, who_invited_add)]
 
     def verifyPartyMember(self, user_cc):
         for party_list in self.parties.values():
@@ -114,233 +296,36 @@ class Server:
         return client_username
 
     def setUser(self, client_socket, client_address):
-        connection = (client_socket, client_address)
         # get username
         client_username = self.setUsername(client_socket)
         # get cc
         client_socket.send(bytes("CC: ", 'utf-8'))
         cc = client_socket.recv(1024).decode()
         # add user
-        self.soloPlayersConnected.update({connection: (client_username, cc)})
+        self.soloPlayersConnected.update({(client_socket, client_address): (client_username, cc)})
 
-        return [connection, client_username, cc]
+        return client_username, cc
 
-    def handler(self, client_socket, client_address):
-        cc, connection, client_username, client_info = None, None, None, None
+    def handler(self, new_client_socket, new_client_address):
+        new_client_cc, new_client_username, new_client_info = None, None, None
         try:
-            if self.playerReady(client_socket):
-                connection, client_username, cc = self.setUser(client_socket, client_address)
+            if self.playerReady(new_client_socket):
+                new_client_username, new_client_cc = self.setUser(new_client_socket, new_client_address)
 
-                client_info = {connection: (client_username, cc)}
+                new_client_info = (new_client_socket, new_client_address), (new_client_username, new_client_cc)
 
                 # Sending information to other players about the join
-                for (user_socket, user_address), (user_name, user_cc) in self.soloPlayersConnected.items():
-                    if user_socket != client_socket:
-                        user_socket.send(bytes("\n" + client_username + " joined the lobby\n", 'utf-8'))
-                        # Writes the lobby menu
-                        self.lobbyMenu(user_socket, user_cc)
+                self.updateAllLobbyMenu(new_client_socket, new_client_username)
 
-                for party_num, users_list in self.parties.items():
-                    for user in users_list:
-                        for (user_socket, user_address), (user_name, user_cc) in user.items():
-                            if user_socket != client_socket:
-                                user_socket.send(bytes("\n" + client_username + " joined the lobby\n", 'utf-8'))
-                                self.lobbyMenu(user_socket, user_cc)
+
         except:
             print("player disconnected")
-            client_socket.close()
+            new_client_socket.close()
             self.clientDisconnected = True
 
         while True:
-            try:
-                self.lobbyMenu(client_socket, cc)
-                invitation = client_socket.recv(1024).decode()
-
-                if invitation == client_username:
-                    client_socket.send(bytes("You can't invite yourself"))
-                else:
-                    checker = False
-                    for (user_socket, user_address), (user_name, user_cc) in self.soloPlayersConnected.items():
-                        if user_name == invitation:
-                            resp = ""
-                            while resp != "y" and resp != "n":
-                                # Send invite to the player
-                                user_socket.send(bytes("Do you want to play with " + client_username +
-                                                       "?[y/n]", "utf-8"))
-                                resp = user_socket.recv(1024).decode()
-                                # TODO: RESOLVE PROBLEM OF 2 RECV()
-                                # Player accepts the invite
-                                if resp == "y":
-                                    client_socket.send(bytes(user_name + " accepted the invite", 'utf-8'))
-                                    aux_list = [party_num for party_num, user_list in self.parties.items()
-                                                if client_info in user_list]
-                                    # If the client isn't in a party yet
-                                    if len(aux_list) == 0:
-                                        self.parties.update({self.numberOfParties + 1: [{(user_socket, user_address):
-                                                                                             (user_name, user_cc)},
-                                                                                        client_info]})
-                                        self.numberOfParties += 1
-                                    # If the client is already in a party
-                                    else:
-                                        self.parties[aux_list[0]].append({(user_socket, user_address):
-                                                                             (user_name, user_cc)})
-                                    checker = True
-                                    # Remover da lista de players que não estão em party o player convidado
-                                    del self.soloPlayersConnected[(user_socket, user_address)]
-                                    # Remover da lista de player que nao estão em party o client
-                                    # (Se não estiver numa party)
-                                    if connection in self.soloPlayersConnected:
-                                        del self.soloPlayersConnected[connection]
-                                    # Atualiza lobby do players
-                                    for (user_socket2, user_address2), (user_name2, user_cc2) in \
-                                            self.soloPlayersConnected.items():
-                                        if user_socket2 != client_socket:
-                                            self.lobbyMenu(user_socket2, user_cc2)
-                                    for party_num, users_list in self.parties.items():
-                                        for user in users_list:
-                                            for (user_socket2, user_address2), (user_name2, user_cc2) in user.items():
-                                                if user_socket2 != client_socket:
-                                                    self.lobbyMenu(user_socket2, user_cc2)
-                                # Player refuses the invite
-                                elif resp == "n":
-                                    client_socket.send(bytes(user_name + " refused the invite", 'utf-8'))
-                            break
-
-                    # If the player is already in a party
-                    if not checker:
-                        for party_number, users_list in self.parties.items():
-                            for user in users_list:
-                                for (user_socket, user_address), (user_name, user_cc) in user.items():
-                                    if user_name == invitation:
-                                        if self.verifyPartyMember(cc):
-                                            client_socket.send(bytes("You'te already in a party, you can't join "
-                                                                     "another", "utf-8"))
-                                            break
-                                        checker = True
-                                        resp = ""
-                                        while resp != "y" and resp != "n":
-                                            user_socket.send(bytes("Do you want to play with " + client_username +
-                                                                   "?[y/n]", "utf-8"))
-                                            resp = user_socket.recv(1024).decode()
-                                            if resp == "y":
-                                                client_socket.send(bytes(user_name + " accepted the invite", 'utf-8'))
-                                                del self.soloPlayersConnected[connection]
-                                                self.parties[party_number].append(client_info)
-                                                # Atualiza lobby do players
-                                                for (user_socket2, user_address2), (user_name2, user_cc2) in \
-                                                        self.soloPlayersConnected.items():
-                                                    if user_socket2 != client_socket:
-                                                        self.lobbyMenu(user_socket2, user_cc2)
-                                                for party_num, u_list in self.parties.items():
-                                                    for user in u_list:
-                                                        for (user_socket2, user_address2), (user_name2, user_cc2) in \
-                                                                user.items():
-                                                            if user_socket2 != client_socket:
-                                                                self.lobbyMenu(user_socket2, user_cc2)
-                                            elif resp == "n":
-                                                client_socket.send(bytes(user_name + " refused the invite", 'utf-8'))
-                                if self.verifyPartyMember(cc):
-                                    break
-                        if self.verifyPartyMember(cc):
-                            break
-
-                    # Se o player convidade não estiver no lobby, nem numa party
-                    # OU ser o utilizador quiser sair da party
-                    if not checker:
-                        if invitation == "LEAVE":
-                            if not self.verifyPartyMember(cc):
-                                client_socket.send(bytes("You're not in a party", 'utf-8'))
-                            else:
-                                for party_num, users_list in self.parties.items():
-                                    if client_info in users_list:
-                                        if len(users_list) == 2:
-                                            for user in users_list:
-                                                for (user_socket, user_address), (user_name, user_cc) in user.items():
-                                                    if client_socket != user_socket:
-                                                        user_socket.send(bytes("\n" + client_username + " left the "
-                                                                                "party, party was deleted\n", 'utf-8'))
-                                                    self.soloPlayersConnected.update({(user_socket, user_address):
-                                                                                          (user_name, user_cc)})
-                                            client_socket.send(bytes("You left the party", 'utf-8'))
-                                            del self.parties[party_num]
-                                            break
-                                        else:
-                                            for user in users_list:
-                                                for (user_socket, user_address), (user_name, user_cc) in user.items():
-                                                    if client_socket != user_socket:
-                                                        user_socket.send(bytes("\n" + client_username + " left the "
-                                                                                                        "party",
-                                                                               'utf-8'))
-                                            users_list.remove(client_info)
-                                            client_socket.send(bytes("You left the party", 'utf-8'))
-                                            self.soloPlayersConnected.update(client_info)
-                                            break
-                                # Updates the players lobby
-                                for (user_socket2, user_address2), (user_name2, user_cc2) in \
-                                        self.soloPlayersConnected.items():
-                                    if user_socket2 != client_socket:
-                                        self.lobbyMenu(user_socket2, user_cc2)
-                                    for party_num, users_list in self.parties.items():
-                                        for user in users_list:
-                                            for (user_socket22, user_address22), (user_name22, user_cc22) in user.items():
-                                                if user_socket22 != client_socket:
-                                                    self.lobbyMenu(user_socket22, user_cc22)
-                        else:
-                            client_socket.send(bytes("\nThat players doesn't exist\n", 'utf-8'))
-
-                    # verify if PARTY = 4
-                    party44 = False
-                    for party_num, users_list in self.parties.items():
-                        for user in users_list:
-                            for (user_socket, user_address), (_, _) in user.items():
-                                if user_socket == client_socket and len(users_list) == 4:
-                                    party44 = True
-                                    break
-                            if party44:
-                                break
-                        if party44:
-                            break
-                    if party44:
-                        client_socket.send(bytes("CREATE TABLE", 'utf-8'))
-                        break
-            except:
-                print("player disconnected")
-                # self.connections.remove(client_socket)
-                if self.verifyPartyMember(cc):
-                    for party_num, users_list in self.parties.items():
-                        if client_info in users_list:
-                            if len(users_list) == 2:
-                                for user in users_list:
-                                    for (user_socket, user_address), (user_name, user_cc) in user.items():
-                                        if client_socket != user_socket:
-                                            user_socket.send(bytes("\n" + client_username + " leave the party, "
-                                                                                            "party was deleted\n",
-                                                                   'utf-8'))
-                                        self.soloPlayersConnected.update({(user_socket, user_address):
-                                                                              (user_name, user_cc)})
-                                del self.parties[party_num]
-                                break
-                            else:
-                                for user in users_list:
-                                    for (user_socket, user_address), (_, _) in user.items():
-                                        if client_socket != user_socket:
-                                            user_socket.send(bytes("\n" + client_username + " leave the party",
-                                                                   'utf-8'))
-                                users_list.remove(client_info)
-                                self.soloPlayersConnected.update(client_info)
-                                break
-                else:
-                    del self.soloPlayersConnected[connection]
-                # Updates the lobby
-                for (user_socket2, user_address2), (user_name2, user_cc2) in self.soloPlayersConnected.items():
-                    self.lobbyMenu(user_socket2, user_cc2)
-                for party_num, users_list in self.parties.items():
-                    for user in users_list:
-                        for (user_socket2, user_address2), (user_name2, user_cc2) in user.items():
-                            self.lobbyMenu(user_socket2, user_cc2)
-                client_socket.close()
-                self.clientDisconnected = True
-                break
+            self.lobbyOptions(new_client_info)
+            self.updateAllLobbyMenu(None, None)
 
     def run(self):
         while True:
@@ -376,7 +361,7 @@ class Client:
                 self.clientSocket.close()
 
     def __init__(self, address):
-        self.clientSocket.connect((address, 10001))
+        self.clientSocket.connect((address, 10002))
 
         input_thread = threading.Thread(target=self.sendMsg)
         input_thread.daemon = True
