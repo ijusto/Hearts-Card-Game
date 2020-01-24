@@ -74,7 +74,7 @@ class Server:
                     client_socket.send(bytes("This Username was already taken", 'utf-8'))
 
             # Pedir CC
-            client_socket.send(bytes("CC: ", 'utf-8'))
+            client_socket.send(bytes("CitizenCard Authentication: ", 'utf-8'))
             cc = client_socket.recv(1024).decode()
             connection = (client_socket, client_address)
             # Adicionar aos soloplayers
@@ -96,6 +96,7 @@ class Server:
             print("player disconnected")
             client_socket.close()
             self.clientDisconnected = True
+            raise
 
         # flag de ajuda com os invites
         invitationFlag = False

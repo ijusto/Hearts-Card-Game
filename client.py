@@ -10,6 +10,8 @@ class Client:
     clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     clientDisconnect = False
 
+    cc = None
+
     probChoice = 0
     probSwitch = 0
     probShuffle = 0
@@ -83,11 +85,13 @@ class Client:
             try:
                 data = self.clientSocket.recv(1024)
                 if not self.is_json(data.decode()):
+                    if "CitizenCard Authentication:" in data.decode('utf-8'):
+                        self.cc = CitizenCard()
                     if "Do you want to play with" in data.decode('utf-8'):
                         self.clientSocket.send(bytes("ignore", 'utf-8'))
                     if data and "Cemiterio" not in data.decode('utf-8'):
                         if "Do you want to play with" in data.decode('utf-8'):
-                            time.sleep(3)
+                            time.sleep(2)
                         print(str(data, 'utf-8'))
                     if "NEW TABLE" in data.decode('utf-8'):
                         self.clientSocket.send(bytes("startgame", 'utf-8'))
@@ -153,6 +157,7 @@ class Client:
                         deck = self.shuffle(deck)
                         deckJson = json.dumps({"deckAfterEBT": deck})
                         self.clientSocket.send(deckJson.encode())
-            except:
+            except Exception as e:
+                print(str(e))
                 self.clientDisconnect = True
                 self.clientSocket.close()
