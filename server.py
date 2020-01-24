@@ -96,9 +96,8 @@ class Server:
 
             # ask for the citizenCard
             client_socket.send(bytes("CitizenCard Authentication: ", 'utf-8'))
-            s = client_socket.recv(1024)
-            ckey = pickle.loads(s)
-            print(ckey)
+            #s = client_socket.recv(1024)
+            #ckey = pickle.loads(s)
             cc = client_socket.recv(1024).decode()
             connection = (client_socket, client_address)
             # Add to the soloplayers
@@ -138,7 +137,6 @@ class Server:
                                 user_socket.send(
                                     bytes("Do you want to play with " + client_username + "?[y/n]", "utf-8"))
                                 resp = user_socket.recv(1024).decode()
-                                print("resp: " + resp)
                                 # Player aceita convite
                                 if resp == "y":
                                     client_socket.send(bytes(user_name + " accepted the invite", 'utf-8'))
@@ -160,7 +158,7 @@ class Server:
                                     if connection in self.playersConnected:
                                         del self.playersConnected[connection]
                                     # Update players lobby
-                                    self.updateLobbyChanges(self, client_socket, client_username, False)
+                                    self.updateLobbyChanges(client_socket, client_username, False)
                                 # Player recusa convite
                                 elif resp == "n":
                                     client_socket.send(bytes(user_name + " refused the invite", 'utf-8'))
@@ -192,7 +190,7 @@ class Server:
                                                 # Add player to party
                                                 self.parties[party_number].append(dicAux)
                                                 # Update players lobby
-                                                self.updateLobbyChanges(self, client_socket)
+                                                self.updateLobbyChanges(client_socket, client_username, False)
                                             # Player denies the invite
                                             elif resp == "n":
                                                 checker = True
@@ -248,7 +246,6 @@ class Server:
                                                     self.sendLobbyMenu(user_socket2, user_cc2)
                         # Ignorar mensagem (resolver problema do duplo convite)
                         elif invitation == "ignore":
-                            print(invitation)
                             invitationFlag = True
                         elif invitation == "startgame":
                             break
@@ -349,6 +346,29 @@ class Server:
         while True:
             # Wait for all the messages to be sent
             time.sleep(1)
+
+
+            #open listens
+            for table_num, lst in self.tables.items():
+                if table_num == numTable:
+                    for user in lst:
+                        for (user_socket, user_address) in user.keys():
+                            user_socket.send(bytes(str("newlisten" + str(user_address)).encode()))
+
+            #SEND client socket to each player
+            for table_num, lst in self.tables.items():
+                if table_num == numTable:
+                    for user in lst:
+                        for (user_socket, user_address) in user.keys():
+                            for user2 in lst:
+                                for (user_socket2, user_address2) in user2.keys():
+                                    if user_socket != user_socket2:
+                                        user_socket.send(bytes(str("playersock"+str(user_address2)).encode()))
+                                        time.sleep(0.5)
+
+
+
+
             # Send to each player the deck. The player will shuffle it and send it back
             for table_num, lst in self.tables.items():
                 if table_num == numTable:
@@ -421,7 +441,7 @@ class Server:
                                                             user_socket2.send(bytes(user_name + ": " + card, 'utf-8'))
                                     else:
                                         roundCards.append(self.firstCard)
-                                        graveyardCards.append((self.firstPlayer, card))
+                                        graveyardCards.append((self.firstPlayer, self.firstCard))
                                 else:
                                     user_socket.send(bytes("Your Turn", 'utf-8'))
                                     card = user_socket.recv(1024).decode()

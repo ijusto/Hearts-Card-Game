@@ -9,9 +9,12 @@ import pickle
 class Client:
     # ipv4 tcp socket
     clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     clientDisconnect = False
 
     cc = None
+
+    playerInTable = []
 
     probChoice = 0
     probSwitch = 0
@@ -86,18 +89,31 @@ class Client:
             try:
                 data = self.clientSocket.recv(1024)
                 if not self.is_json(data.decode()):
+                    if "newlisten" in data.decode('utf-8'):
+                        sock = data.decode('utf-8').replace("newlisten", "").replace("(", "").replace(")", "").replace(
+                            "\'", "").split(",")
+                        print("1"+str(sock)+"\n")
+                        print("2"+str(sock[0])+"\n")
+                        print("3"+str(sock[1])+"\n")
+                        print("4"+str(int(sock[1]))+"\n")
+                        self.listener.bind((sock[0], int(sock[1])))
+                        self.listener.listen(4)
+                    if "playersock" in data.decode('utf-8'):
+                        sock = data.decode('utf-8').replace("playersock", "").replace("(", "").replace(")", "").replace("\'", "").split(",")
+                        print(sock)
+                        self.playerInTable.append(socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((sock[0], int(sock[1]))))
                     if "Do you want to play with" in data.decode('utf-8'):
                         self.clientSocket.send(bytes("ignore", 'utf-8'))
-                    if data and "Graveyard" not in data.decode('utf-8'):
-                        if "Do you want to play with" in data.decode('utf-8'):
-                            time.sleep(2)
+                    if data and "Graveyard" and "newlisten" and "playersock" not in data.decode('utf-8'):
+                        #if "Do you want to play with" in data.decode('utf-8'):
+                            #time.sleep(2)
                         print(str(data, 'utf-8'))
-                    if "CitizenCard Authentication:" in data.decode('utf-8'):
-                        self.cc = CitizenCard()
-                        sign = self.cc.sign("yo")
-                        self.cc.validateSignature(sign[0], sign[1])
-                        to_send = pickle.dumps(self.cc.pubKeyDer)
-                        self.clientSocket.send(to_send)
+                    #if "CitizenCard Authentication:" in data.decode('utf-8'):
+                        #self.cc = CitizenCard()
+                        #sign = self.cc.sign("yo")
+                        #self.cc.validateSignature(sign[0], sign[1])
+                        #to_send = pickle.dumps(self.cc.pubKeyDer)
+                        #self.clientSocket.send(to_send)
                     if "NEW TABLE" in data.decode('utf-8'):
                         self.clientSocket.send(bytes("startgame", 'utf-8'))
                     if "HAND" in data.decode('utf-8'):
