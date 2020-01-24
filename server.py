@@ -137,7 +137,8 @@ class Server:
                                     checker = True
                                     # Remover da lista de players que não estão em party o player convidado
                                     del self.playersConnected[(user_socket, user_address)]
-                                    # Remover da lista de player que nao estão em party o client (Se não estiver numa party)
+                                    # Remover da lista de player que nao estão em party o client
+                                    # (Se não estiver numa party)
                                     if connection in self.playersConnected:
                                         del self.playersConnected[connection]
                                     # Atualiza lobby do players
@@ -494,8 +495,8 @@ class Server:
             self.decks.update({numTable: [(i, diamonds) for i in range(2, 15)] + [(i, spades) for i in range(2, 15)]
                                          + [(i, hearts) for i in range(2, 15)] + [(i, clubs) for i in range(2, 15)]})
 
-    def roundWinner(self, cartasRonda):
-        biggerCard = cartasRonda[0].split(" ")
+    def roundWinner(self, roundCards):
+        biggerCard = roundCards[0].split(" ")
         index = 0
         court_n_ace = ["J", "Q", "K", "A"]
         if biggerCard[0] == court_n_ace[0]:
@@ -508,7 +509,7 @@ class Server:
             biggerCard[0] = 14
         biggerCard[0] = int(biggerCard[0])
         i = 0
-        for card in cartasRonda[1:]:
+        for card in roundCards[1:]:
             i += 1
             card = card.split(" ")
             if biggerCard[1] == card[1]:
@@ -571,7 +572,7 @@ class Server:
                 self.firstPlayer = client_socket
 
     def handler(self, client_socket, client_address):
-        self.lobby(client_socket, client_address);
+        self.lobby(client_socket, client_address)
 
     def run(self):
         while True:
