@@ -9,7 +9,7 @@ from cryptography.hazmat.primitives.asymmetric import (padding, rsa, utils)
 class CitizenCard:
 
     def __init__(self):
-        self.lib = '/usr/local/lib/libpteidpkcs11.so'
+        self.lib = 'c:\\Windows\\System32\\pteidpkcs11.dll.'
         self.pkcs11 = PyKCS11.PyKCS11Lib()
         self.pkcs11.load(self.lib)
         self.session = self.createSession()
@@ -17,6 +17,7 @@ class CitizenCard:
         self.pubKeyDer = self.session.getAttributeValue(self.pubKeyHandle, [CKA_VALUE], True)[0]
         self.privKey = self.session.findObjects([(CKA_CLASS, CKO_PRIVATE_KEY), (CKA_LABEL, 'CITIZEN AUTHENTICATION KEY')])[0]
         self.pubKey = load_der_public_key(bytes(self.pubKeyDer), default_backend())
+        print(self.pubKey)
 
     def getCitizenCardSlot(self):
         slots = self.pkcs11.getSlotList()
@@ -34,6 +35,9 @@ class CitizenCard:
     def sign(self, dataToBeSigned):
         data = bytes(dataToBeSigned, 'utf-8')
         signature = bytes(self.session.sign(self.privKey, data, Mechanism(CKM_SHA1_RSA_PKCS)))
+        return data, signature
+
+    def validateSignature(self, data, signature):
         try:
             self.pubKey.verify(signature, data, padding.PKCS1v15(), hashes.SHA1())
             print('Verification succeeded')

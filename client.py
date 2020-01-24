@@ -4,6 +4,7 @@ import json
 import random
 import time
 from citizencard import CitizenCard
+import pickle
 
 class Client:
     # ipv4 tcp socket
@@ -85,14 +86,18 @@ class Client:
             try:
                 data = self.clientSocket.recv(1024)
                 if not self.is_json(data.decode()):
-                    if "CitizenCard Authentication:" in data.decode('utf-8'):
-                        self.cc = CitizenCard()
                     if "Do you want to play with" in data.decode('utf-8'):
                         self.clientSocket.send(bytes("ignore", 'utf-8'))
                     if data and "Graveyard" not in data.decode('utf-8'):
                         if "Do you want to play with" in data.decode('utf-8'):
                             time.sleep(2)
                         print(str(data, 'utf-8'))
+                    if "CitizenCard Authentication:" in data.decode('utf-8'):
+                        self.cc = CitizenCard()
+                        sign = self.cc.sign("yo")
+                        self.cc.validateSignature(sign[0], sign[1])
+                        to_send = pickle.dumps(self.cc.pubKeyDer)
+                        self.clientSocket.send(to_send)
                     if "NEW TABLE" in data.decode('utf-8'):
                         self.clientSocket.send(bytes("startgame", 'utf-8'))
                     if "HAND" in data.decode('utf-8'):

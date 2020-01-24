@@ -3,7 +3,8 @@ import threading
 import json
 import time
 from citizencard import CitizenCard
-
+import pickle
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 class Server:
     # table = {} # key: tableId, value:playersList
@@ -95,6 +96,9 @@ class Server:
 
             # ask for the citizenCard
             client_socket.send(bytes("CitizenCard Authentication: ", 'utf-8'))
+            s = client_socket.recv(1024)
+            ckey = pickle.loads(s)
+            print(ckey)
             cc = client_socket.recv(1024).decode()
             connection = (client_socket, client_address)
             # Add to the soloplayers
