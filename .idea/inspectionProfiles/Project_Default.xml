@@ -4,12 +4,9 @@
     <inspection_tool class="PyPep8NamingInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
       <option name="ignoredErrors">
         <list>
-<<<<<<< HEAD
-=======
-          <option value="N806" />
           <option value="N802" />
->>>>>>> 9902cafd5ae49e843b430fcf7e9a3fb37e0c2411
           <option value="N803" />
+          <option value="N806" />
         </list>
       </option>
     </inspection_tool>

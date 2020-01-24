@@ -89,7 +89,7 @@ class Client:
                         self.cc = CitizenCard()
                     if "Do you want to play with" in data.decode('utf-8'):
                         self.clientSocket.send(bytes("ignore", 'utf-8'))
-                    if data and "Cemiterio" not in data.decode('utf-8'):
+                    if data and "Graveyard" not in data.decode('utf-8'):
                         if "Do you want to play with" in data.decode('utf-8'):
                             time.sleep(2)
                         print(str(data, 'utf-8'))
@@ -98,12 +98,12 @@ class Client:
                     if "HAND" in data.decode('utf-8'):
                         print(self.printHand())
                     if "started the round" in data.decode('utf-8'):
-                        self.clientSocket.send(bytes("jajogado", 'utf-8'))
+                        self.clientSocket.send(bytes("alreadyplayed", 'utf-8'))
                         self.flagTurn = False
                         self.flagTurnStart = True
                     if "Your Turn" in data.decode('utf-8'):
                         self.flagTurn = True
-                    if "Cemiterio" in data.decode('utf-8'):
+                    if "Graveyard" in data.decode('utf-8'):
                         self.graveyard += int(data.decode('utf-8').split(" ")[1])
                     if "End of the game" in data.decode('utf-8'):
                         self.clientSocket.send(bytes(str(self.graveyard), 'utf-8'))

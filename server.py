@@ -4,6 +4,7 @@ import json
 import time
 from citizencard import CitizenCard
 
+
 class Server:
     # table = {} # key: tableId, value:playersList
     # tableId = 1
@@ -28,8 +29,8 @@ class Server:
         print("Waiting for a connection, Server Started")
         self.numberOfClients = 0
 
-    # Função que escreve o lobby
-    def lobbyMeny(self, userSocket, userCc):
+    # writes the lobby
+    def sendLobbyMenu(self, userSocket, userCc):
         userSocket.send(bytes("Lobby:\n", 'utf-8'))
         userSocket.send(bytes("SoloPlayers:\n", 'utf-8'))
         for un, ucc in self.playersConnected.values():
@@ -45,7 +46,7 @@ class Server:
                 userSocket.send(bytes(str(partyLobby) + "\n", 'utf-8'))
         userSocket.send(bytes("\nInvite a player (using his username)", 'utf-8'))
 
-        # VERIFICAR SE UM MEMBRO ESTÁ NUMA PARTY
+        # verify if a member is in a party
         if self.verifyPartyMember(userCc):
             userSocket.send(bytes("\nWrite LEAVE to leave the party\n", 'utf-8'))
 
@@ -58,40 +59,51 @@ class Server:
                         verifier = True
         return verifier
 
+    def verifyUsernameTaken(self, client_socket):
+        validUser = False
+        client_username = None
+        while not validUser:
+            validUser = True
+            client_socket.send(bytes("Username: ", 'utf-8'))
+            client_username = client_socket.recv(1024).decode()
+            for value in self.playersConnected.values():
+                if value[0] == client_username:
+                    validUser = False
+                    break
+            if not validUser:
+                client_socket.send(bytes("This Username was already taken", 'utf-8'))
+        return client_username
+
+    def updateLobbyChanges(self, client_socket, client_username, joined):
+        for (user_socket, user_address), (user_name, user_cc) in self.playersConnected.items():
+            if user_socket != client_socket:
+                if joined:
+                    user_socket.send(bytes("\n" + client_username + " joined the lobby\n", 'utf-8'))
+                self.sendLobbyMenu(user_socket, user_cc)
+        for party_num, lst in self.parties.items():
+            for user in lst:
+                for (user_socket, user_address), (user_name, user_cc) in user.items():
+                    if user_socket != client_socket:
+                        if joined:
+                            user_socket.send(bytes("\n" + client_username + " joined the lobby\n", 'utf-8'))
+                        self.sendLobbyMenu(user_socket, user_cc)
+
     def lobby(self, client_socket, client_address):
         try:
-            # VERIFICAR SE O client_username JÁ FOI ESCOLHIDO
-            validUser = False
-            while not validUser:
-                validUser = True
-                client_socket.send(bytes("Username: ", 'utf-8'))
-                client_username = client_socket.recv(1024).decode()
-                for value in self.playersConnected.values():
-                    if value[0] == client_username:
-                        validUser = False
-                        break
-                if not validUser:
-                    client_socket.send(bytes("This Username was already taken", 'utf-8'))
+            # verify if client_username was already taken
+            client_username = self.verifyUsernameTaken(client_socket)
 
-            # Pedir CC
+            # ask for the citizenCard
             client_socket.send(bytes("CitizenCard Authentication: ", 'utf-8'))
             cc = client_socket.recv(1024).decode()
             connection = (client_socket, client_address)
-            # Adicionar aos soloplayers
+            # Add to the soloplayers
             dicAux = {connection: (client_username, cc)}
             self.playersConnected.update({connection: (client_username, cc)})
 
             # Sending information to other players about the join
-            for (user_socket, user_address), (user_name, user_cc) in self.playersConnected.items():
-                if user_socket != client_socket:
-                    user_socket.send(bytes("\n" + client_username + " joined the lobby\n", 'utf-8'))
-                    self.lobbyMeny(user_socket, user_cc)
-            for party_num, lst in self.parties.items():
-                for user in lst:
-                    for (user_socket, user_address), (user_name, user_cc) in user.items():
-                        if user_socket != client_socket:
-                            user_socket.send(bytes("\n" + client_username + " joined the lobby\n", 'utf-8'))
-                            self.lobbyMeny(user_socket, user_cc)
+            self.updateLobbyChanges(client_socket, client_username, True)
+
         except:
             print("player disconnected")
             client_socket.close()
@@ -105,7 +117,7 @@ class Server:
             try:
                 # Caso a ultima mensagem enviada seja "ignore"
                 if not invitationFlag:
-                    self.lobbyMeny(client_socket, cc)
+                    self.sendLobbyMenu(client_socket, cc)
                 invitationFlag = False
                 invitation = client_socket.recv(1024).decode()
 
@@ -137,22 +149,14 @@ class Server:
                                         self.parties[auxList[0]].append(
                                             {(user_socket, user_address): (user_name, user_cc)})
                                     checker = True
-                                    # Remover da lista de players que não estão em party o player convidado
+                                    # Delete the invited player from the player's list
                                     del self.playersConnected[(user_socket, user_address)]
                                     # Remover da lista de player que nao estão em party o client
                                     # (Se não estiver numa party)
                                     if connection in self.playersConnected:
                                         del self.playersConnected[connection]
-                                    # Atualiza lobby do players
-                                    for (user_socket2, user_address2), (
-                                            user_name2, user_cc2) in self.playersConnected.items():
-                                        if user_socket2 != client_socket:
-                                            self.lobbyMeny(user_socket2, user_cc2)
-                                    for party_num, lst in self.parties.items():
-                                        for user in lst:
-                                            for (user_socket2, user_address2), (user_name2, user_cc2) in user.items():
-                                                if user_socket2 != client_socket:
-                                                    self.lobbyMeny(user_socket2, user_cc2)
+                                    # Update players lobby
+                                    self.updateLobbyChanges(self, client_socket, client_username, False)
                                 # Player recusa convite
                                 elif resp == "n":
                                     client_socket.send(bytes(user_name + " refused the invite", 'utf-8'))
@@ -176,25 +180,16 @@ class Server:
                                                 bytes("Do you want to play with " + client_username + "?[y/n]",
                                                       "utf-8"))
                                             resp = user_socket.recv(1024).decode()
-                                            # Player aceita convite
+                                            # Player accepts the invite
                                             if resp == "y":
                                                 client_socket.send(bytes(user_name + " accepted the invite", 'utf-8'))
-                                                # Apagar player dos solo players
+                                                # Delete player from solo players
                                                 del self.playersConnected[connection]
-                                                # Adicionar player à party
+                                                # Add player to party
                                                 self.parties[party_number].append(dicAux)
-                                                # Atualiza lobby do players
-                                                for (user_socket2, user_address2), (
-                                                        user_name2, user_cc2) in self.playersConnected.items():
-                                                    if user_socket2 != client_socket:
-                                                        self.lobbyMeny(user_socket2, user_cc2)
-                                                for party_num2, lst2 in self.parties.items():
-                                                    for user in lst2:
-                                                        for (user_socket2, user_address2), (
-                                                                user_name2, user_cc2) in user.items():
-                                                            if user_socket2 != client_socket:
-                                                                self.lobbyMeny(user_socket2, user_cc2)
-                                            # Player recusa convite
+                                                # Update players lobby
+                                                self.updateLobbyChanges(self, client_socket)
+                                            # Player denies the invite
                                             elif resp == "n":
                                                 checker = True
                                                 client_socket.send(bytes(user_name + " refused the invite", 'utf-8'))
@@ -221,7 +216,7 @@ class Server:
                                                     self.playersConnected.update(
                                                         {(user_socket, user_address): (user_name, user_cc)})
                                             client_socket.send(bytes("You left the party", 'utf-8'))
-                                            # Apagar party
+                                            # Delete party
                                             del self.parties[party_num]
                                             break
                                         else:
@@ -241,12 +236,12 @@ class Server:
                                 for (user_socket2, user_address2), (
                                         user_name2, user_cc2) in self.playersConnected.items():
                                     if user_socket2 != client_socket:
-                                        self.lobbyMeny(user_socket2, user_cc2)
+                                        self.sendLobbyMenu(user_socket2, user_cc2)
                                     for party_num, lst in self.parties.items():
                                         for user in lst:
                                             for (user_socket2, user_address2), (user_name2, user_cc2) in user.items():
                                                 if user_socket2 != client_socket:
-                                                    self.lobbyMeny(user_socket2, user_cc2)
+                                                    self.sendLobbyMenu(user_socket2, user_cc2)
                         # Ignorar mensagem (resolver problema do duplo convite)
                         elif invitation == "ignore":
                             print(invitation)
@@ -320,11 +315,11 @@ class Server:
                     del self.playersConnected[connection]
                 # Atualiza lobby do players
                 for (user_socket2, user_address2), (user_name2, user_cc2) in self.playersConnected.items():
-                    self.lobbyMeny(user_socket2, user_cc2)
+                    self.sendLobbyMenu(user_socket2, user_cc2)
                 for party_num, lst in self.parties.items():
                     for user in lst:
                         for (user_socket2, user_address2), (user_name2, user_cc2) in user.items():
-                            self.lobbyMeny(user_socket2, user_cc2)
+                            self.sendLobbyMenu(user_socket2, user_cc2)
                 client_socket.close()
                 self.clientDisconnected = True
                 break
@@ -348,9 +343,9 @@ class Server:
 
     def gameStart(self, numTable):
         while True:
-            # Esperar para que todas as mensagens sejam enviadas
+            # Wait for all the messages to be sent
             time.sleep(1)
-            # Enviar para cada jogador o deck, este vai baralhá-lo e enviar de volta
+            # Send to each player the deck. The player will shuffle it and send it back
             for table_num, lst in self.tables.items():
                 if table_num == numTable:
                     for user in lst:
@@ -364,8 +359,8 @@ class Server:
                             self.decks[table_num] = dataShuffled
                             user_socket.send(bytes("\nCARD DISTRIBUTION\n", 'utf-8'))
             print(self.decks[numTable])
-            # Já todos os players baralharam
-            # Enviar para cada jogador, este pode escolher uma carta, baralhar de novo ou trocar uma carta
+            # All players have shuffled it
+            # Send for each player. Each player can choose a card, shuffle again or switch a card
             while not all(card == self.decks[numTable][0] for card in self.decks[numTable]):
                 for table_num, lst in self.tables.items():
                     if table_num == numTable:
@@ -378,7 +373,7 @@ class Server:
                                     objectJson = json.loads(dataJson.decode())
                                     dataAfterEBT = objectJson['deckAfterEBT']
                                     self.decks[table_num] = dataAfterEBT
-            # Mostrar mãos
+            # Show hands
             for table_num, lst in self.tables.items():
                 if table_num == numTable:
                     for user in lst:
@@ -389,17 +384,17 @@ class Server:
                                                                 args=(user_socket, user_address, numTable))
                             connectionThread.daemon = True
                             connectionThread.start()
-            # Enquanto nenhum jogador não jogar nada acontece
+            # While no one plays, nothing happens
             while self.firstPlayer is None:
                 pass
-            # Organizar ordem das jogadas
+            # Arrange plays order
             self.arrangeTable(numTable)
             round_ = 1
             graveyardCards = []
             while round_ <= 13:
                 time.sleep(1)
-                cartasRonda = []
-                # Jogada de cada jogador
+                roundCards = []
+                # Play of each player
                 for table_num, lst in self.tables.items():
                     if table_num == numTable:
                         for user in lst:
@@ -411,9 +406,9 @@ class Server:
                                         while not self.validCard(card):
                                             user_socket.send(bytes("That is not a card", 'utf-8'))
                                             card = user_socket.recv(1024).decode()
-                                        cartasRonda.append(card)
+                                        roundCards.append(card)
                                         graveyardCards.append((user_socket, card))
-                                        # Enviar carta jogada para os restantes jogadores
+                                        # Send the played card to the rest of the players
                                         for table_num2, list2 in self.tables.items():
                                             if table_num2 == numTable:
                                                 for user2 in list2:
@@ -421,7 +416,7 @@ class Server:
                                                         if user_socket != user_socket2:
                                                             user_socket2.send(bytes(user_name + ": " + card, 'utf-8'))
                                     else:
-                                        cartasRonda.append(self.firstCard)
+                                        roundCards.append(self.firstCard)
                                         graveyardCards.append((self.firstPlayer, card))
                                 else:
                                     user_socket.send(bytes("Your Turn", 'utf-8'))
@@ -429,7 +424,7 @@ class Server:
                                     while not self.validCard(card):
                                         user_socket.send(bytes("That is not a card", 'utf-8'))
                                         card = user_socket.recv(1024).decode()
-                                    cartasRonda.append(card)
+                                    roundCards.append(card)
                                     graveyardCards.append((user_socket, card))
                                     for table_num2, list2 in self.tables.items():
                                         if table_num2 == numTable:
@@ -437,12 +432,12 @@ class Server:
                                                 for (user_socket2, user_address2) in user2.keys():
                                                     if user_socket != user_socket2:
                                                         user_socket2.send(bytes(user_name + ": " + card, 'utf-8'))
-                # Ver quem ganhou a ronda
-                winner = self.roundWinner(cartasRonda)
+                # See who won the round
+                winner = self.roundWinner(roundCards)
                 graveyard = 0
                 username = ""
-                # Pontos por ronda
-                for card in cartasRonda:
+                # Round points
+                for card in roundCards:
                     if "hearts" in card:
                         graveyard += 1
                     elif "Q spades" in card:
@@ -454,7 +449,7 @@ class Server:
                             time.sleep(0.1)
                             user_socket.send(bytes("\nHAND:", 'utf-8'))
                             time.sleep(0.1)
-                            user_socket.send(bytes("Cemiterio " + str(graveyard), 'utf-8'))
+                            user_socket.send(bytes("Graveyard " + str(graveyard), 'utf-8'))
                             self.firstPlayer = user_socket
                             username = user_name
                 for table_num, lst in self.tables.items():
@@ -467,7 +462,7 @@ class Server:
                                     user_socket.send(bytes("\nHAND:", 'utf-8'))
                 self.arrangeTable(numTable)
                 round_ += 1
-            # Fim de um jogo
+            # End of game
             score = []
             for table_num, lst in self.tables.items():
                 if table_num == numTable:
@@ -476,7 +471,7 @@ class Server:
                             user_socket.send(bytes("End of the game", 'utf-8'))
                             points = int(user_socket.recv(1024).decode())
                             score.append([user_socket, points])
-            # Verificar se algum jogador tem 26 pontos
+            # Verify if any player has 26 points
             maxPoints = False
             for points in score:
                 if 26 == points[1]:
@@ -488,7 +483,7 @@ class Server:
                     else:
                         points[1] = 26
                 points[0].send(bytes("You scored " + str(points[1]) + " points", 'utf-8'))
-            # Reset do deck
+            # Deck reset
             del self.decks[numTable]
             diamonds = 'diamonds'
             spades = 'spades'
@@ -497,33 +492,29 @@ class Server:
             self.decks.update({numTable: [(i, diamonds) for i in range(2, 15)] + [(i, spades) for i in range(2, 15)]
                                          + [(i, hearts) for i in range(2, 15)] + [(i, clubs) for i in range(2, 15)]})
 
+    def whichRank(self, card):
+        court_n_ace = ["J", "Q", "K", "A"]
+        if card[0] == court_n_ace[0]:
+            card[0] = 11
+        elif card[0] == court_n_ace[1]:
+            card[0] = 12
+        elif card[0] == court_n_ace[2]:
+            card[0] = 13
+        elif card[0] == court_n_ace[3]:
+            card[0] = 14
+        card[0] = int(card[0])
+        return card
+
     def roundWinner(self, roundCards):
         biggerCard = roundCards[0].split(" ")
         index = 0
-        court_n_ace = ["J", "Q", "K", "A"]
-        if biggerCard[0] == court_n_ace[0]:
-            biggerCard[0] = 11
-        elif biggerCard[0] == court_n_ace[1]:
-            biggerCard[0] = 12
-        elif biggerCard[0] == court_n_ace[2]:
-            biggerCard[0] = 13
-        elif biggerCard[0] == court_n_ace[3]:
-            biggerCard[0] = 14
-        biggerCard[0] = int(biggerCard[0])
+        biggerCard = self.whichRank(biggerCard)
         i = 0
         for card in roundCards[1:]:
             i += 1
             card = card.split(" ")
             if biggerCard[1] == card[1]:
-                if card[0] == court_n_ace[0]:
-                    card[0] = 11
-                elif card[0] == court_n_ace[1]:
-                    card[0] = 12
-                elif card[0] == court_n_ace[2]:
-                    card[0] = 13
-                elif card[0] == court_n_ace[3]:
-                    card[0] = 14
-                card[0] = int(card[0])
+                card = self.whichRank(card)
                 if (biggerCard[0] < card[0]):
                     index = i
                     biggerCard = card
@@ -549,14 +540,14 @@ class Server:
 
     def firstPlay(self, client_socket, client_address, numTable):
         card = client_socket.recv(1024).decode()
-        if card != "jajogado":
+        if card != "alreadyplayed":
             username = ""
             while not self.validCard(card):
-                if card == "jajogado":
+                if card == "alreadyplayed":
                     break
                 client_socket.send(bytes("That is not a card", 'utf-8'))
                 card = client_socket.recv(1024).decode()
-            if card != "jajogado":
+            if card != "alreadyplayed":
                 for table_num, lst in self.tables.items():
                     if table_num == numTable:
                         for user in lst:
