@@ -2,6 +2,7 @@ import socket
 import threading
 import json
 import time
+from citizencard import CitizenCard
 
 class Server:
     # table = {} # key: tableId, value:playersList

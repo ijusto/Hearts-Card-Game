@@ -3,6 +3,7 @@ import threading
 import json
 import random
 import time
+from citizencard import CitizenCard
 
 class Client:
     # ipv4 tcp socket
