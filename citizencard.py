@@ -10,6 +10,7 @@ class CitizenCard:
 
     def __init__(self):
         self.lib = 'c:\\Windows\\System32\\pteidpkcs11.dll.'
+        #self.lib = '/usr/local/lib/libpteidpkcs11.so'
         self.pkcs11 = PyKCS11.PyKCS11Lib()
         self.pkcs11.load(self.lib)
         self.session = self.createSession()
