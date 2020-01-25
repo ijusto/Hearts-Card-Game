@@ -14,7 +14,11 @@ class Client:
 
     cc = None
 
-    playerInTable = []
+    sessionsNumber = 0
+    pToConnect = [socket.socket(socket.AF_INET, socket.SOCK_STREAM),
+                  socket.socket(socket.AF_INET, socket.SOCK_STREAM),
+                  socket.socket(socket.AF_INET, socket.SOCK_STREAM)]
+    playersInTable = []
 
     probChoice = 0
     probSwitch = 0
@@ -71,8 +75,11 @@ class Client:
                 h.append(str(court_n_ace[card[0] - 11]) + " " + card[1])
         return h
 
+    def msgBetweenPlayers(self, player_socket):
+        print(player_socket.recv(1024).decode())
+
     def __init__(self, address):
-        self.clientSocket.connect((address, 10001))
+        self.clientSocket.connect((address, 10002))
 
         # Probabilidade do client escolher, trocar e baralhar
         self.probChoice = random.randint(1, 20)
@@ -92,19 +99,21 @@ class Client:
                     if "newlisten" in data.decode('utf-8'):
                         sock = data.decode('utf-8').replace("newlisten", "").replace("(", "").replace(")", "").replace(
                             "\'", "").split(",")
-                        print("1"+str(sock)+"\n")
-                        print("2"+str(sock[0])+"\n")
-                        print("3"+str(sock[1])+"\n")
-                        print("4"+str(int(sock[1]))+"\n")
                         self.listener.bind((sock[0], int(sock[1])))
                         self.listener.listen(4)
                     if "playersock" in data.decode('utf-8'):
                         sock = data.decode('utf-8').replace("playersock", "").replace("(", "").replace(")", "").replace("\'", "").split(",")
-                        print(sock)
-                        self.playerInTable.append(socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((sock[0], int(sock[1]))))
+                        print("add:"+sock[0]+" port:"+sock[1])
+                        self.pToConnect[self.sessionsNumber].connect((sock[0], int(sock[1])))
+                        print("here4")
+                        #self.sessionsNumber += 1
+                    if "acceptNewConnection" in data.decode(('utf-8')):
+                        print("here1")
+                        self.listener.accept()
+                        print("here2")
                     if "Do you want to play with" in data.decode('utf-8'):
                         self.clientSocket.send(bytes("ignore", 'utf-8'))
-                    if data and "Graveyard" and "newlisten" and "playersock" not in data.decode('utf-8'):
+                    if data and "acceptNewConnection" and "Graveyard" and "newlisten" and "playersock" not in data.decode('utf-8'):
                         #if "Do you want to play with" in data.decode('utf-8'):
                             #time.sleep(2)
                         print(str(data, 'utf-8'))
@@ -132,6 +141,17 @@ class Client:
                         self.graveyard = 0
                     if "You scored" in data.decode('utf-8'):
                         self.totalPoints += int(data.decode('utf-8').split(" ")[2])
+                    #if "SHUFFLE" in data.decode('utf-8'):
+                        #for i in range(0, 2):
+                        #    inputThread = threading.Thread(target=self.msgBetweenPlayers, args=[self.pToConnect[i]])
+                        #    inputThread.daemon = True
+                        #    inputThread.start()
+                        #inputThread = threading.Thread(target=self.msgBetweenPlayers, args=[self.pToConnect[0]])
+                        #inputThread.daemon = True
+                        #inputThread.start()
+                    if "CARD DISTRIBUTION" in data.decode('utf-8'):
+                        for i in range(0, 2):
+                            self.pToConnect[i].send(bytes("funciona?", 'utf-8'))
                     if not data:
                         continue
                 else:
