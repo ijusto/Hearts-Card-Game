@@ -25,7 +25,7 @@ class Server:
     firstCard = None
 
     def __init__(self):
-        self.serverSocket.bind(('0.0.0.0', 10001))
+        self.serverSocket.bind(('0.0.0.0', 10002))
         self.serverSocket.listen(1)
         print("Waiting for a connection, Server Started")
         self.numberOfClients = 0
@@ -363,9 +363,11 @@ class Server:
                             for user2 in lst:
                                 for (user_socket2, user_address2) in user2.keys():
                                     if user_socket != user_socket2:
-                                        user_socket.send(bytes(str("playersock"+str(user_address2)).encode()))
-                                        time.sleep(0.5)
-
+                                        time.sleep(0.2)
+                                        user_socket2.send(bytes(str("playersock"+str(user_address)).encode()))
+                                        time.sleep(0.4)
+                                        user_socket.send(bytes("acceptNewConnection", 'utf-8'))
+                                        time.sleep(0.1)
 
 
 
@@ -381,6 +383,10 @@ class Server:
                             objectJson = json.loads(dataJson.decode())
                             dataShuffled = objectJson['deckShuffled']
                             self.decks[table_num] = dataShuffled
+            for table_num, lst in self.tables.items():
+                if table_num == numTable:
+                    for user in lst:
+                        for (user_socket, user_address) in user.keys():
                             user_socket.send(bytes("\nCARD DISTRIBUTION\n", 'utf-8'))
             print(self.decks[numTable])
             # All players have shuffled it
