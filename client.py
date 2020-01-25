@@ -76,7 +76,11 @@ class Client:
         return h
 
     def msgBetweenPlayers(self, player_socket):
-        print(player_socket.recv(1024).decode())
+        print("here1")
+        data = player_socket.recv(1024).decode()
+        while not data:
+            data = player_socket.recv(1024).decode()
+        print(data)
 
     def __init__(self, address):
         self.clientSocket.connect((address, 10002))
@@ -96,6 +100,12 @@ class Client:
             try:
                 data = self.clientSocket.recv(1024)
                 if not self.is_json(data.decode()):
+                    if data and "acceptNewConnection" not in data.decode('utf-8') and "Graveyard" not in \
+                            data.decode('utf-8') and "newlisten" not in data.decode('utf-8') and "playersock" not in \
+                            data.decode('utf-8'):
+                        #if "Do you want to play with" in data.decode('utf-8'):
+                            #time.sleep(2)
+                        print(str(data, 'utf-8'))
                     if "newlisten" in data.decode('utf-8'):
                         sock = data.decode('utf-8').replace("newlisten", "").replace("(", "").replace(")", "").replace(
                             "\'", "").split(",")
@@ -103,20 +113,17 @@ class Client:
                         self.listener.listen(4)
                     if "playersock" in data.decode('utf-8'):
                         sock = data.decode('utf-8').replace("playersock", "").replace("(", "").replace(")", "").replace("\'", "").split(",")
-                        print("add:"+sock[0]+" port:"+sock[1])
+                        #print(str(self.listener)+"connecting too")
+                        #print("add:"+sock[0]+" port:"+sock[1])
                         self.pToConnect[self.sessionsNumber].connect((sock[0], int(sock[1])))
-                        print("here4")
-                        #self.sessionsNumber += 1
+                        self.sessionsNumber += 1
                     if "acceptNewConnection" in data.decode(('utf-8')):
-                        print("here1")
-                        self.listener.accept()
-                        print("here2")
+                        #print(str(self.listener) + "accepting")
+                        sock, add = self.listener.accept()
+                        self.pToConnect[self.sessionsNumber] = sock
+                        self.sessionsNumber += 1
                     if "Do you want to play with" in data.decode('utf-8'):
                         self.clientSocket.send(bytes("ignore", 'utf-8'))
-                    if data and "acceptNewConnection" and "Graveyard" and "newlisten" and "playersock" not in data.decode('utf-8'):
-                        #if "Do you want to play with" in data.decode('utf-8'):
-                            #time.sleep(2)
-                        print(str(data, 'utf-8'))
                     #if "CitizenCard Authentication:" in data.decode('utf-8'):
                         #self.cc = CitizenCard()
                         #sign = self.cc.sign("yo")
@@ -142,16 +149,23 @@ class Client:
                     if "You scored" in data.decode('utf-8'):
                         self.totalPoints += int(data.decode('utf-8').split(" ")[2])
                     #if "SHUFFLE" in data.decode('utf-8'):
-                        #for i in range(0, 2):
-                        #    inputThread = threading.Thread(target=self.msgBetweenPlayers, args=[self.pToConnect[i]])
-                        #    inputThread.daemon = True
-                        #    inputThread.start()
+                    #    for i in range(0, 3):
+                    #        inputThread = threading.Thread(target=self.msgBetweenPlayers, args=[self.pToConnect[i]])
+                    #        inputThread.daemon = True
+                    #        inputThread.start()
                         #inputThread = threading.Thread(target=self.msgBetweenPlayers, args=[self.pToConnect[0]])
                         #inputThread.daemon = True
                         #inputThread.start()
-                    if "CARD DISTRIBUTION" in data.decode('utf-8'):
-                        for i in range(0, 2):
-                            self.pToConnect[i].send(bytes("funciona?", 'utf-8'))
+                    #if "CARD DISTRIBUTION" in data.decode('utf-8'):
+                    #    for i in range(0, 3):
+                    #        print("here2")
+                    #        self.pToConnect[i].send(bytes("funciona", 'utf-8'))
+                    if "receiving" in data.decode('utf-8'):
+                        i = int(data.decode('utf-8').split(":")[1])
+                        print(self.pToConnect[i].recv(1024).decode())
+                    if "sending" in data.decode('utf-8'):
+                        i = int(data.decode('utf-8').split(":")[1])
+                        self.pToConnect[i].send(bytes("funciona", 'utf-8'))
                     if not data:
                         continue
                 else:
