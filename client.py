@@ -102,13 +102,6 @@ class Client:
     def decipherMsgFromServer(self, msg):
         return self.serverPubKey.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
 
-    def msgBetweenPlayers(self, player_socket):
-        print("here1")
-        data = player_socket.recv(1024).decode()
-        while not data:
-            data = player_socket.recv(1024).decode()
-        print(data)
-
     def __init__(self, address):
         self.clientSocket.connect((address, 10002))
 
