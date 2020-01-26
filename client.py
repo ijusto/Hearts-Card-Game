@@ -99,7 +99,23 @@ class Client:
             deck = decipherHand
 
     def cipherMsgToServer(self, msg):
-        return self.serverPubKey.encrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
+        # Calculate the maximum amount of data we can encrypt with OAEP + SHA256
+        maxLen = (self.serverPubKey.key_size // 8) - 2 * hashes.SHA256.digest_size - 2
+        minLen = 0
+        ciphertext = None
+        while True:
+            if maxLen <= len(msg):
+                # Read for plaintext no more than maxLen bytes from the input file
+                plaintext = msg[minLen:maxLen]
+                minLen = maxLen - 1
+                maxLen += maxLen
+            else:
+                break
+
+            # Encrypt the plaintext using OAEP + MGF1(SHA256) + SHA256
+            ciphertext += bytes(self.serverPubKey.encrypt(plaintext, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                                                                           hashes.SHA256(), None)), 'utf-8')
+        return ciphertext
 
     def decipherMsgFromServer(self, msg):
         return self.serverPubKey.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
