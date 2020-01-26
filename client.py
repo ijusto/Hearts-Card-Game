@@ -99,7 +99,23 @@ class Client:
             deck = decipherHand
 
     def cipherMsgToServer(self, msg):
-        return self.serverPubKey.encrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
+            # Calculate the maximum amount of data we can encrypt with OAEP + SHA256
+        maxLen = (self.serverPubKey.key_size // 8) - 2 * hashes.SHA256.digest_size - 2
+
+        #while True:
+            # Read for plaintext no more than maxLen bytes from the input file
+        plaintext = msg[:maxLen]
+
+            #if not plaintext:
+            #    break
+
+            # Encrypt the plaintext using OAEP + MGF1(SHA256) + SHA256
+        ciphertext = self.serverPubKey.encrypt(plaintext, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                                                                           hashes.SHA256(), None))
+        return ciphertext
+
+    #def cipherMsgToServer(self, msg):
+    #    return self.serverPubKey.encrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
 
     def decipherMsgFromServer(self, msg):
         return self.serverPubKey.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
@@ -131,7 +147,7 @@ class Client:
                     if "ServerPublicKey" in data.decode('utf-8'):
                         pem = self.clientSocket.recv(1024)
                         self.serverPubKey = serialization.load_pem_public_key(pem, backend=default_backend())
-                        #self.serverPubKey = data.decode('utf-8').split(":")[1]
+                        self.clientSocket.send(self.cipherMsgToServer(bytes("olaaaaaaaaaaaaaolaaaaaaaaaaaaalaaaaaaaaaaalaaaaaaaaaaa",'utf-8')))
                     if "newlisten" in data.decode('utf-8'):
                         sock = data.decode('utf-8').replace("newlisten", "").replace("(", "").replace(")", "").replace(
                             "\'", "").split(",")

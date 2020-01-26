@@ -10,6 +10,7 @@ import random
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
 
 class Server:
 
@@ -111,11 +112,15 @@ class Server:
             while validate == 'Verification failed':
                 # ask for the citizenCard
                 client_socket.send(bytes("CitizenCard Authentication: ", 'utf-8'))
-                s = self.decipherMsgFromClient(client_socket.recv(1024))
-                clientkeyder = pickle.loads(s)
+                print(self.decipherMsgFromClient(client_socket.recv(1024)).decode())
+                pem = self.decipherMsgFromClient(client_socket.recv(1024))
+                clientkey = serialization.load_pem_public_key(pem, backend=default_backend())
+
+
+                #clientkeyder = pickle.loads(s)
                 cc_temp = CitizenCard()
-                cc_temp.setPubKey(clientkeyder)
-                clientkey = cc_temp.pubKey
+                cc_temp.setPubKey(clientkey)
+                #clientkey = cc_temp.pubKey
                 randomToSign = random.randint(0, 1000)
                 client_socket.send(bytes("RandomToSign:"+str(randomToSign), 'utf-8'))
                 signature = client_socket.recv(1024)

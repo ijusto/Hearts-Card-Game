@@ -19,8 +19,11 @@ class CitizenCard:
         self.privKey = self.session.findObjects([(CKA_CLASS, CKO_PRIVATE_KEY), (CKA_LABEL, 'CITIZEN AUTHENTICATION KEY')])[0]
         self.pubKey = load_der_public_key(bytes(self.pubKeyDer), default_backend())
 
-    def setPubKey(self, pubkeyder):
-        self.pubKey = load_der_public_key(bytes(pubkeyder), default_backend())
+    #def setPubKey(self, pubkeyder):
+    #    self.pubKey = load_der_public_key(bytes(pubkeyder), default_backend())
+
+    def setPubKey(self, pubkey):
+        self.pubKey = pubkey
 
     def getCitizenCardSlot(self):
         slots = self.pkcs11.getSlotList()
