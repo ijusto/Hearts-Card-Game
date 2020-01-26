@@ -6,6 +6,7 @@ from citizencard import CitizenCard
 import pickle
 from cryptography.hazmat.primitives.asymmetric import rsa
 from EntityKeyManagement import EntityKeyManagement
+import random
 
 class Server:
 
@@ -36,32 +37,32 @@ class Server:
         self.numberOfClients = 0
 
     # writes the lobby
-    def sendLobbyMenu(self, userSocket, userCc):
+    def sendLobbyMenu(self, userSocket, userName):
         userSocket.send(bytes("Lobby:\n", 'utf-8'))
         userSocket.send(bytes("SoloPlayers:\n", 'utf-8'))
         for un, ucc in self.playersConnected.values():
-            if ucc != userCc:
+            if un != userName:
                 userSocket.send(bytes(un + "\n", 'utf-8'))
         userSocket.send(bytes("Parties:\n", 'utf-8'))
         for lst in self.parties.values():
             partyLobby = []
             for elem in lst:
-                for (user_socket, user_address), (user_name, user_cc) in elem.items():
+                for (user_socket, user_address), (user_name, user_pubkey) in elem.items():
                     partyLobby.append(user_name)
             if len(partyLobby) != 0:
                 userSocket.send(bytes(str(partyLobby) + "\n", 'utf-8'))
         userSocket.send(bytes("\nInvite a player (using his username)", 'utf-8'))
 
         # verify if a member is in a party
-        if self.verifyPartyMember(userCc):
+        if self.verifyPartyMember(userName):
             userSocket.send(bytes("\nWrite LEAVE to leave the party\n", 'utf-8'))
 
-    def verifyPartyMember(self, userCC):
+    def verifyPartyMember(self, userName):
         verifier = False
         for lst in self.parties.values():
             for elem in lst:
                 for (user_name, user_cc) in elem.values():
-                    if user_cc == userCC:
+                    if user_name == userName:
                         verifier = True
         return verifier
 
@@ -81,18 +82,18 @@ class Server:
         return client_username
 
     def updateLobbyChanges(self, client_socket, client_username, joined):
-        for (user_socket, user_address), (user_name, user_cc) in self.playersConnected.items():
+        for (user_socket, user_address), (user_name, user_pubkey) in self.playersConnected.items():
             if user_socket != client_socket:
                 if joined:
                     user_socket.send(bytes("\n" + client_username + " joined the lobby\n", 'utf-8'))
-                self.sendLobbyMenu(user_socket, user_cc)
+                self.sendLobbyMenu(user_socket, user_name)
         for party_num, lst in self.parties.items():
             for user in lst:
-                for (user_socket, user_address), (user_name, user_cc) in user.items():
+                for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                     if user_socket != client_socket:
                         if joined:
                             user_socket.send(bytes("\n" + client_username + " joined the lobby\n", 'utf-8'))
-                        self.sendLobbyMenu(user_socket, user_cc)
+                        self.sendLobbyMenu(user_socket, user_name)
 
     def lobby(self, client_socket, client_address):
         try:
@@ -101,13 +102,20 @@ class Server:
 
             # ask for the citizenCard
             client_socket.send(bytes("CitizenCard Authentication: ", 'utf-8'))
-            #s = client_socket.recv(1024)
-            #ckey = pickle.loads(s)
-            cc = client_socket.recv(1024).decode()
+            s = client_socket.recv(1024)
+            clientkeyder = pickle.loads(s)
+            cc_temp = CitizenCard()
+            cc_temp.setPubKey(clientkeyder)
+            clientkey = cc_temp.pubKey
+            randomToSign = random.randint(0, 1000)
+            client_socket.send(bytes("RandomToSign:"+str(randomToSign), 'utf-8'))
+            signature = client_socket.recv(1024)
+            #cc_temp.validateSignature(str(randomToSign), signature)
+            client_socket.send(bytes(cc_temp.validateSignature(bytes(str(randomToSign), 'utf-8'), signature),'utf-8'))
             connection = (client_socket, client_address)
             # Add to the soloplayers
-            dicAux = {connection: (client_username, cc)}
-            self.playersConnected.update({connection: (client_username, cc)})
+            dicAux = {connection: (client_username, clientkey)}
+            self.playersConnected.update({connection: (client_username, clientkey)})
 
             # Sending information to other players about the join
             self.updateLobbyChanges(client_socket, client_username, True)
@@ -125,7 +133,7 @@ class Server:
             try:
                 # Caso a ultima mensagem enviada seja "ignore"
                 if not invitationFlag:
-                    self.sendLobbyMenu(client_socket, cc)
+                    self.sendLobbyMenu(client_socket, client_username)
                 invitationFlag = False
                 invitation = client_socket.recv(1024).decode()
 
@@ -134,7 +142,7 @@ class Server:
                     client_socket.send(bytes("You can't invite your self", 'utf-8'))
                 else:
                     checker = False
-                    for (user_socket, user_address), (user_name, user_cc) in self.playersConnected.items():
+                    for (user_socket, user_address), (user_name, user_pubkey) in self.playersConnected.items():
                         if user_name == invitation:
                             resp = ""
                             while resp != "y" and resp != "n":
@@ -149,12 +157,12 @@ class Server:
                                     # Se o client ainda não estiver numa party
                                     if len(auxList) == 0:
                                         self.parties.update({self.numberOfParties + 1: [
-                                            {(user_socket, user_address): (user_name, user_cc)}, dicAux]})
+                                            {(user_socket, user_address): (user_name, user_pubkey)}, dicAux]})
                                         self.numberOfParties += 1
                                     # Se o client já estiver numa party
                                     else:
                                         self.parties[auxList[0]].append(
-                                            {(user_socket, user_address): (user_name, user_cc)})
+                                            {(user_socket, user_address): (user_name, user_pubkey)})
                                     checker = True
                                     # Delete the invited player from the player's list
                                     del self.playersConnected[(user_socket, user_address)]
@@ -172,10 +180,10 @@ class Server:
                     if not checker:
                         for party_number, lst in self.parties.items():
                             for user in lst:
-                                for (user_socket, user_address), (user_name, user_cc) in user.items():
+                                for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                     if user_name == invitation:
                                         # Se o player convida um player que já esteja numa party
-                                        if self.verifyPartyMember(cc):
+                                        if self.verifyPartyMember(client_username):
                                             checker = True
                                             client_socket.send(
                                                 bytes("You'te already in a party, you can't join another", "utf-8"))
@@ -205,7 +213,7 @@ class Server:
                     if not checker:
                         if invitation == "LEAVE":
                             # Se o player nao estiver numa party
-                            if not self.verifyPartyMember(cc):
+                            if not self.verifyPartyMember(client_username):
                                 client_socket.send(bytes("You're not in a party", 'utf-8'))
                             else:
                                 for party_num, lst in self.parties.items():
@@ -213,7 +221,7 @@ class Server:
                                         # Se a party for de tamanho 2
                                         if len(lst) == 2:
                                             for user in lst:
-                                                for (user_socket, user_address), (user_name, user_cc) in user.items():
+                                                for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                                     if client_socket != user_socket:
                                                         # Enviar informaçao para o outro membro da party
                                                         user_socket.send(bytes(
@@ -221,14 +229,14 @@ class Server:
                                                             'utf-8'))
                                                     # Adicionar players da party aos soloplayer
                                                     self.playersConnected.update(
-                                                        {(user_socket, user_address): (user_name, user_cc)})
+                                                        {(user_socket, user_address): (user_name, user_pubkey)})
                                             client_socket.send(bytes("You left the party", 'utf-8'))
                                             # Delete party
                                             del self.parties[party_num]
                                             break
                                         else:
                                             for user in lst:
-                                                for (user_socket, user_address), (user_name, user_cc) in user.items():
+                                                for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                                     if client_socket != user_socket:
                                                         # Enviar informaçao que um membro saiu da party
                                                         user_socket.send(
@@ -241,14 +249,14 @@ class Server:
                                             break
                                 # Atualiza lobby do players
                                 for (user_socket2, user_address2), (
-                                        user_name2, user_cc2) in self.playersConnected.items():
+                                        user_name2, user_pubkey2) in self.playersConnected.items():
                                     if user_socket2 != client_socket:
-                                        self.sendLobbyMenu(user_socket2, user_cc2)
+                                        self.sendLobbyMenu(user_socket2, user_name2)
                                     for party_num, lst in self.parties.items():
                                         for user in lst:
-                                            for (user_socket2, user_address2), (user_name2, user_cc2) in user.items():
+                                            for (user_socket2, user_address2), (user_name2, user_pubkey2) in user.items():
                                                 if user_socket2 != client_socket:
-                                                    self.sendLobbyMenu(user_socket2, user_cc2)
+                                                    self.sendLobbyMenu(user_socket2, user_name2)
                         # Ignorar mensagem (resolver problema do duplo convite)
                         elif invitation == "ignore":
                             invitationFlag = True
@@ -261,7 +269,7 @@ class Server:
                     for party_num, lst in self.parties.items():
                         if len(lst) == 4:
                             for user in lst:
-                                for (user_socket, user_address), (user_name, user_cc) in user.items():
+                                for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                     if user_socket == client_socket:
                                         party44 = True
                                     else:
@@ -291,25 +299,25 @@ class Server:
                 print("player disconnected")
                 # self.connections.remove(client_socket)
                 # Se o player estiver numa party
-                if self.verifyPartyMember(cc):
+                if self.verifyPartyMember(client_username):
                     for party_num, lst in self.parties.items():
                         if dicAux in lst:
                             # Se a party for de 2
                             if len(lst) == 2:
                                 for user in lst:
-                                    for (user_socket, user_address), (user_name, user_cc) in user.items():
+                                    for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                         if client_socket != user_socket:
                                             user_socket.send(
                                                 bytes("\n" + client_username + " leave the party, party was deleted\n",
                                                       'utf-8'))
                                         self.playersConnected.update(
-                                            {(user_socket, user_address): (user_name, user_cc)})
+                                            {(user_socket, user_address): (user_name, user_pubkey)})
                                 del self.parties[party_num]
                                 break
                             # Se a party for maior que 2
                             else:
                                 for user in lst:
-                                    for (user_socket, user_address), (user_name, user_cc) in user.items():
+                                    for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                         if client_socket != user_socket:
                                             user_socket.send(
                                                 bytes("\n" + client_username + " leave the party", 'utf-8'))
@@ -320,12 +328,12 @@ class Server:
                     # Retirar player dos solo players
                     del self.playersConnected[connection]
                 # Atualiza lobby do players
-                for (user_socket2, user_address2), (user_name2, user_cc2) in self.playersConnected.items():
-                    self.sendLobbyMenu(user_socket2, user_cc2)
+                for (user_socket2, user_address2), (user_name2, user_pubkey2) in self.playersConnected.items():
+                    self.sendLobbyMenu(user_socket2, user_name2)
                 for party_num, lst in self.parties.items():
                     for user in lst:
-                        for (user_socket2, user_address2), (user_name2, user_cc2) in user.items():
-                            self.sendLobbyMenu(user_socket2, user_cc2)
+                        for (user_socket2, user_address2), (user_name2, user_pubkey2) in user.items():
+                            self.sendLobbyMenu(user_socket2, user_name2)
                 client_socket.close()
                 self.clientDisconnected = True
                 break
@@ -462,7 +470,7 @@ class Server:
                 for table_num, lst in self.tables.items():
                     if table_num == numTable:
                         for user in lst:
-                            for (user_socket, user_address), (user_name, user_cc) in user.items():
+                            for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                 if round_ == 1:
                                     if user_socket != self.firstPlayer:
                                         user_socket.send(bytes("Your Turn", 'utf-8'))
@@ -508,7 +516,7 @@ class Server:
                         graveyard += 13
                 for table_num, lst in self.tables.items():
                     if table_num == numTable:
-                        for (user_socket, user_address), (user_name, user_cc) in lst[winner].items():
+                        for (user_socket, user_address), (user_name, user_pubkey) in lst[winner].items():
                             user_socket.send(bytes("You won the round", 'utf-8'))
                             time.sleep(0.1)
                             user_socket.send(bytes("\nHAND:", 'utf-8'))
@@ -615,13 +623,13 @@ class Server:
                 for table_num, lst in self.tables.items():
                     if table_num == numTable:
                         for user in lst:
-                            for (user_socket, user_address), (user_name, user_cc) in user.items():
+                            for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                 if client_socket == user_socket:
                                     username = user_name
                 for table_num, lst in self.tables.items():
                     if table_num == numTable:
                         for user in lst:
-                            for (user_socket, user_address), (user_name, user_cc) in user.items():
+                            for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                 if user_socket != client_socket:
                                     user_socket.send(bytes(username + " started the round", 'utf-8'))
                                     user_socket.send(bytes(username + ": " + card, 'utf-8'))

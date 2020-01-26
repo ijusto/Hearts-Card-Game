@@ -19,6 +19,9 @@ class CitizenCard:
         self.privKey = self.session.findObjects([(CKA_CLASS, CKO_PRIVATE_KEY), (CKA_LABEL, 'CITIZEN AUTHENTICATION KEY')])[0]
         self.pubKey = load_der_public_key(bytes(self.pubKeyDer), default_backend())
 
+    def setPubKey(self, pubkeyder):
+        self.pubKey = load_der_public_key(bytes(pubkeyder), default_backend())
+
     def getCitizenCardSlot(self):
         slots = self.pkcs11.getSlotList()
         for slot in slots:
@@ -35,11 +38,11 @@ class CitizenCard:
     def sign(self, dataToBeSigned):
         data = bytes(dataToBeSigned, 'utf-8')
         signature = bytes(self.session.sign(self.privKey, data, Mechanism(CKM_SHA1_RSA_PKCS)))
-        return data, signature
+        return signature
 
     def validateSignature(self, data, signature):
         try:
             self.pubKey.verify(signature, data, padding.PKCS1v15(), hashes.SHA1())
-            print('Verification succeeded')
+            return 'Verification succeeded'
         except:
-            print('Verification failed')
+            return 'Verification failed'

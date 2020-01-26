@@ -13,6 +13,7 @@ class Client:
     clientDisconnect = False
 
     cc = None
+    serverPubKey = None
 
     sessionsNumber = 0
     pToConnect = [socket.socket(socket.AF_INET, socket.SOCK_STREAM),
@@ -124,12 +125,13 @@ class Client:
                         self.sessionsNumber += 1
                     if "Do you want to play with" in data.decode('utf-8'):
                         self.clientSocket.send(bytes("ignore", 'utf-8'))
-                    #if "CitizenCard Authentication:" in data.decode('utf-8'):
-                        #self.cc = CitizenCard()
-                        #sign = self.cc.sign("yo")
-                        #self.cc.validateSignature(sign[0], sign[1])
-                        #to_send = pickle.dumps(self.cc.pubKeyDer)
-                        #self.clientSocket.send(to_send)
+                    if "CitizenCard Authentication:" in data.decode('utf-8'):
+                        self.cc = CitizenCard()
+                        to_send = pickle.dumps(self.cc.pubKeyDer)
+                        self.clientSocket.send(to_send)
+                    if "RandomToSign" in data.decode('utf-8'):
+                        sign = self.cc.sign(data.decode('utf-8').split(":")[1])
+                        self.clientSocket.send(sign)
                     if "NEW TABLE" in data.decode('utf-8'):
                         self.clientSocket.send(bytes("startgame", 'utf-8'))
                     if "HAND" in data.decode('utf-8'):
