@@ -265,11 +265,11 @@ class Server:
                                     if user_socket == client_socket:
                                         party44 = True
                                     else:
-                                        user_socket.send(bytes("\nNEW TABLE\n", 'utf-8'))
+                                        user_socket.send(bytes("\nCREATING NEW TABLE\n", 'utf-8'))
                         if party44:
                             break
                     if party44:
-                        client_socket.send(bytes("\nNEW TABLE\n", 'utf-8'))
+                        client_socket.send(bytes("\nCREATING NEW TABLE\n", 'utf-8'))
                         invitationFlag = True
                         self.tables.update({party_num: self.parties[party_num]})
                         # the program is able to exit regardless of if there's any threads still running
@@ -364,17 +364,46 @@ class Server:
             for table_num, lst in self.tables.items():
                 if table_num == numTable:
                     for user in lst:
+                        flag = False
                         for (user_socket, user_address) in user.keys():
                             for user2 in lst:
                                 for (user_socket2, user_address2) in user2.keys():
                                     if user_socket != user_socket2:
-                                        time.sleep(0.2)
-                                        user_socket2.send(bytes(str("playersock"+str(user_address)).encode()))
-                                        time.sleep(0.4)
-                                        user_socket.send(bytes("acceptNewConnection", 'utf-8'))
-                                        time.sleep(0.1)
+                                        if flag:
+                                            time.sleep(0.2)
+                                            user_socket.send(bytes(str("playersock"+str(user_address2)).encode()))
+                                            time.sleep(0.4)
+                                            user_socket2.send(bytes("acceptNewConnection", 'utf-8'))
+                                    else:
+                                        flag = True
 
+            time.sleep(0.5)
 
+            for table_num, lst in self.tables.items():
+                if table_num == numTable:
+                    index1 = 0
+                    for user in lst:
+                        flag = False
+                        for (user_socket, user_address) in user.keys():
+                            index2 = 0
+                            for user2 in lst:
+                                for (user_socket2, user_address2) in user2.keys():
+                                    if user_socket != user_socket2:
+                                        if flag:
+                                            user_socket2.send(bytes("receiving:" + str(index1), 'utf-8'))
+                                            time.sleep(0.2)
+                                            user_socket.send(bytes("sending:" + str(index2), 'utf-8'))
+                                            index2 += 1
+                                            time.sleep(0.2)
+                                        else:
+                                            user_socket2.send(bytes("receiving:" + str(index1-1), 'utf-8'))
+                                            time.sleep(0.2)
+                                            user_socket.send(bytes("sending:" + str(index2), 'utf-8'))
+                                            index2 += 1
+                                            time.sleep(0.2)
+                                    else:
+                                        flag = True
+                        index1 += 1
 
             # Send to each player the deck. The player will shuffle it and send it back
             for table_num, lst in self.tables.items():
