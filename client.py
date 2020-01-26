@@ -111,8 +111,11 @@ class Client:
                         print("here1")
                         self.listener.accept()
                         print("here2")
+
+                    # ignore the "Invite a player (using his username)" message
                     if "Do you want to play with" in data.decode('utf-8'):
                         self.clientSocket.send(bytes("ignore", 'utf-8'))
+
                     if data and "acceptNewConnection" and "Graveyard" and "newlisten" and "playersock" not in data.decode('utf-8'):
                         #if "Do you want to play with" in data.decode('utf-8'):
                             #time.sleep(2)

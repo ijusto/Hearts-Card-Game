@@ -5,8 +5,13 @@ import time
 from citizencard import CitizenCard
 import pickle
 from cryptography.hazmat.primitives.asymmetric import rsa
+from EntityKeyManagement import EntityKeyManagement
 
 class Server:
+
+    serverPrivKey = None
+    serverPubKey = None
+
     # table = {} # key: tableId, value:playersList
     # tableId = 1
     clientDisconnected = False
@@ -598,6 +603,8 @@ class Server:
         self.lobby(client_socket, client_address)
 
     def run(self):
+        self.createServerKeys()
+
         while True:
             # establish the connection to the client wanting to connect
             clientSocket, clientAddress = self.serverSocket.accept()
@@ -615,3 +622,11 @@ class Server:
             # if self.clientDisconnected:
             # stop the server if one of the 4 players gets disconnected
             # break
+
+
+    def createServerKeys(self):
+        keyManagement = EntityKeyManagement(4096)
+        keyManagement.generateKey()
+        self.serverPrivKey = keyManagement.getPrivKey()
+        self.serverPubKey = keyManagement.getPubKey()
+

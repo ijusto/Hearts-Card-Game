@@ -7,40 +7,46 @@ from cryptography.hazmat.primitives.asymmetric import padding
 
 class EntityKeyManagement:
 
-    def __init__(self, key_size, pem_pwd, clientID, clear_text_filename, ciphertext_filename):
+    def __init__(self, key_size):
         self.key_size = key_size # 4096
-        self.pem_pwd = pem_pwd # "ola"
-        self.pem_file = clientID + ".txt"
-        self.clear_text_filename = clear_text_filename # "contentToCipher.txt"
-        self.ciphertext_filename = ciphertext_filename # "cipheredContent.txt"
-        self.generateKey()
-        self.priv_key = self.getPrivKey()
-        self.pub_key = self.getPubKey()
+        self.pem_pwd = None # "ola"
+        self.pem_file = None + ".txt"
+        self.clear_text_filename = None # "contentToCipher.txt"
+        self.ciphertext_filename = None # "cipheredContent.txt"
+        self.priv_key = None
+        self.pub_key = None
 
     def getPrivKey(self):
-        # Load key pair to a PEM file protected by a password
-        with open(self.pem_file, "rb") as kf:
-            priv_key = serialization.load_pem_private_key(kf.read(), bytes(self.pem_pwd, "utf-8"),
-                                                          default_backend())
+        priv_key = self.priv_key
+        if self.pem_file:
+            # Load key pair to a PEM file protected by a password
+            with open(self.pem_file, "rb") as kf:
+                priv_key = serialization.load_pem_private_key(kf.read(), bytes(self.pem_pwd, "utf-8"),
+                                                              default_backend())
         return priv_key
 
     def getPubKey(self):
         priv_key = self.getPrivKey()
-        return priv_key.public_key()
+        pubKey = None
+        if priv_key:
+            pubKey = priv_key.public_key()
+        return pubKey
 
     def generateKey(self):
-        f = open(self.pem_file, "wb")
+        if self.pem_file:
+            f = open(self.pem_file, "wb")
         # Use 65537 (2^16 + 1) as public exponent
-        priv_key = rsa.generate_private_key(65537, self.key_size, default_backend())
+        self.priv_key = rsa.generate_private_key(65537, self.key_size, default_backend())
 
-        # Save the key pair to a PEM file protected by the password saved in variable pwd
-        pem_encoding = priv_key.private_bytes(serialization.Encoding.PEM,
-                                              serialization.PrivateFormat.PKCS8,
-                                              serialization.BestAvailableEncryption(bytes(self.pem_pwd, "utf-8")))
+        if self.pem_file:
+            # Save the key pair to a PEM file protected by the password saved in variable pwd
+            pem_encoding = self.priv_key.private_bytes(serialization.Encoding.PEM,
+                                                  serialization.PrivateFormat.PKCS8,
+                                                  serialization.BestAvailableEncryption(bytes(self.pem_pwd, "utf-8")))
 
-        # Save the contents of pem_encoding in a file
-        f.write(pem_encoding)
-        f.close()
+            # Save the contents of pem_encoding in a file
+            f.write(pem_encoding)
+            f.close()
 
     def rsaCiphering(self):
         # Open input for reading and output file for writing
