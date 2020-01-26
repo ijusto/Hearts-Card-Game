@@ -9,6 +9,7 @@ from EntityKeyManagement import EntityKeyManagement
 import random
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import serialization
 
 class Server:
 
@@ -99,21 +100,31 @@ class Server:
 
     def lobby(self, client_socket, client_address):
         try:
+            pem = self.serverPubKey.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+            client_socket.send(bytes("ServerPublicKey:", 'utf-8'))
+            time.sleep(0.5)
+            client_socket.send(pem)
+            validate = 'Verification failed'
+            while validate == 'Verification failed':
+                # ask for the citizenCard
+                client_socket.send(bytes("CitizenCard Authentication: ", 'utf-8'))
+                s = self.decipherMsgFromClient(client_socket.recv(1024))
+                clientkeyder = pickle.loads(s)
+                cc_temp = CitizenCard()
+                cc_temp.setPubKey(clientkeyder)
+                clientkey = cc_temp.pubKey
+                randomToSign = random.randint(0, 1000)
+                client_socket.send(bytes("RandomToSign:"+str(randomToSign), 'utf-8'))
+                signature = client_socket.recv(1024)
+                validate = cc_temp.validateSignature(bytes(str(randomToSign), 'utf-8'), signature)
+                client_socket.send(bytes(validate, 'utf-8'))
+
             # verify if client_username was already taken
             client_username = self.verifyUsernameTaken(client_socket)
 
-            # ask for the citizenCard
-            client_socket.send(bytes("CitizenCard Authentication: ", 'utf-8'))
-            s = client_socket.recv(1024)
-            clientkeyder = pickle.loads(s)
-            cc_temp = CitizenCard()
-            cc_temp.setPubKey(clientkeyder)
-            clientkey = cc_temp.pubKey
-            randomToSign = random.randint(0, 1000)
-            client_socket.send(bytes("RandomToSign:"+str(randomToSign), 'utf-8'))
-            signature = client_socket.recv(1024)
-            #cc_temp.validateSignature(str(randomToSign), signature)
-            client_socket.send(bytes(cc_temp.validateSignature(bytes(str(randomToSign), 'utf-8'), signature),'utf-8'))
             connection = (client_socket, client_address)
             # Add to the soloplayers
             dicAux = {connection: (client_username, clientkey)}
@@ -641,8 +652,8 @@ class Server:
     def handler(self, client_socket, client_address):
         self.lobby(client_socket, client_address)
 
-    def decipherMsgFromClient(self, msg, clientPubKey):
-        return clientPubKey.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
+    def decipherMsgFromClient(self, msg):
+        return self.serverPrivKey.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
 
     def run(self):
         self.createServerKeys()

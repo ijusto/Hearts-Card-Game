@@ -9,13 +9,12 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import serialization
 
 class Client:
     # Generate a private key for use in the deck encryption
     clientPrivKey = ec.generate_private_key(ec.SECP384R1(), default_backend())
     clientPubKey = clientPrivKey.public_key()
-
-    serverPubKey = None
 
     # ipv4 tcp socket
     clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -99,6 +98,9 @@ class Client:
                 decipherHand += key.decrypt(card, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
             deck = decipherHand
 
+    def cipherMsgToServer(self, msg):
+        return self.serverPubKey.encrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
+
     def decipherMsgFromServer(self, msg):
         return self.serverPubKey.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
 
@@ -122,10 +124,14 @@ class Client:
                 if not self.is_json(data.decode()):
                     if data and "acceptNewConnection" not in data.decode('utf-8') and "Graveyard" not in \
                             data.decode('utf-8') and "newlisten" not in data.decode('utf-8') and "playersock" not in \
-                            data.decode('utf-8'):
+                            data.decode('utf-8') and "RandomToSign" not in data.decode('utf-8'):
                         #if "Do you want to play with" in data.decode('utf-8'):
                             #time.sleep(2)
                         print(str(data, 'utf-8'))
+                    if "ServerPublicKey" in data.decode('utf-8'):
+                        pem = self.clientSocket.recv(1024)
+                        self.serverPubKey = serialization.load_pem_public_key(pem, backend=default_backend())
+                        #self.serverPubKey = data.decode('utf-8').split(":")[1]
                     if "newlisten" in data.decode('utf-8'):
                         sock = data.decode('utf-8').replace("newlisten", "").replace("(", "").replace(")", "").replace(
                             "\'", "").split(",")
@@ -146,8 +152,13 @@ class Client:
                         self.clientSocket.send(bytes("ignore", 'utf-8'))
                     if "CitizenCard Authentication:" in data.decode('utf-8'):
                         self.cc = CitizenCard()
-                        to_send = pickle.dumps(self.cc.pubKeyDer)
-                        self.clientSocket.send(to_send)
+                        #to_send = pickle.dumps(self.cc.pubKeyDer)
+                        #self.clientSocket.send(self.cipherMsgToServer(to_send))
+                        pem = self.cc.pubKey.public_bytes(
+                            encoding=serialization.Encoding.PEM,
+                            format=serialization.PublicFormat.SubjectPublicKeyInfo
+                        )
+                        self.clientSocket.send(self.cipherMsgToServer(pem))
                     if "RandomToSign" in data.decode('utf-8'):
                         sign = self.cc.sign(data.decode('utf-8').split(":")[1])
                         self.clientSocket.send(sign)
