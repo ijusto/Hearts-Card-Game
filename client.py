@@ -5,8 +5,18 @@ import random
 import time
 from citizencard import CitizenCard
 import pickle
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives import hashes
 
 class Client:
+    # Generate a private key for use in the deck encryption
+    clientPrivKey = ec.generate_private_key(ec.SECP384R1(), default_backend())
+    clientPubKey = clientPrivKey.public_key()
+
+    serverPubKey = None
+
     # ipv4 tcp socket
     clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -74,6 +84,22 @@ class Client:
             elif 15 > card[0] >= 11:
                 h.append(str(court_n_ace[card[0] - 11]) + " " + card[1])
         return h
+
+    def cipherDeck(self, deck):
+        cipherDeck = []
+        for card in deck:
+            # Encrypt the plaintext using OAEP + MGF1(SHA256) + SHA256
+            cipherDeck += [self.clientPrivKey.encrypt(card, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(),
+                                                                        None))]
+    def decipherDeck(self, deck, keys):
+        decipherHand = []
+        for key in keys: # all pub keys in order
+            for card in deck:
+                decipherHand += key.decrypt(card, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
+            deck = decipherHand
+
+    def decipherMsgFromServer(self, msg):
+        return self.serverPubKey.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
 
     def msgBetweenPlayers(self, player_socket):
         print("here1")

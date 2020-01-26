@@ -6,6 +6,8 @@ from citizencard import CitizenCard
 import pickle
 from cryptography.hazmat.primitives.asymmetric import rsa
 from EntityKeyManagement import EntityKeyManagement
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives import hashes
 
 class Server:
 
@@ -630,6 +632,9 @@ class Server:
 
     def handler(self, client_socket, client_address):
         self.lobby(client_socket, client_address)
+
+    def decipherMsgFromClient(self, msg, clientPubKey):
+        return clientPubKey.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
 
     def run(self):
         self.createServerKeys()
