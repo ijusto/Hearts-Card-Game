@@ -49,7 +49,7 @@ class Client:
             try:
                 if self.flagTurn:
                     sentence = input("")
-                    self.serverSocket.send(bytes(sentence, 'utf-8'))
+                    self.serverSocket.send(self.cipherMsgToServer(sentence))
                     if sentence in self.printHand():
                         card = sentence.split(" ")
                         court_n_ace = ["J", "Q", "K", "A"]
@@ -186,146 +186,146 @@ class Client:
         inputThread.start()
 
         while not self.clientDisconnect:
-            #try:
-            if self.decrypt:
-                data = self.decipherMsgFromServer(self.serverSocket.recv(1024)).decode()
-                if "Sign your pubkey" in data:
-                    pemRSA = self.clientPubKeyRSA.public_bytes(
-                        encoding=serialization.Encoding.PEM,
-                        format=serialization.PublicFormat.SubjectPublicKeyInfo
-                    )
-                    sign = self.cc.sign(pemRSA)
-                    self.serverSocket.send(self.cipherMsgToServer(sign))
-                self.decrypt = False
-            else:
-                data = self.serverSocket.recv(1024)
-                if not self.is_json(data.decode()):
-                    if data and "acceptNewConnection" not in data.decode('utf-8') and "Graveyard" not in \
-                            data.decode('utf-8') and "newlisten" not in data.decode('utf-8') and "playersock" not in \
-                            data.decode('utf-8') and "RandomToSign" not in data.decode('utf-8')\
-                            and "ServerPublicKey" not in data.decode('utf-8'):
-                        #if "Do you want to play with" in data.decode('utf-8'):
-                            #time.sleep(2)
-                        print(str(data, 'utf-8'))
-                    if "ServerPublicKey" in data.decode('utf-8'):
-                        pem = self.serverSocket.recv(1024)
-                        self.serverPubKey = serialization.load_pem_public_key(pem, backend=default_backend())
-                        self.cc = CitizenCard()
-                        pemCC = self.cc.pubKey.public_bytes(
-                            encoding=serialization.Encoding.PEM,
-                            format=serialization.PublicFormat.SubjectPublicKeyInfo
-                        )
+            try:
+                if self.decrypt:
+                    data = self.decipherMsgFromServer(self.serverSocket.recv(1024)).decode()
+                    if "Sign your pubkey" in data:
                         pemRSA = self.clientPubKeyRSA.public_bytes(
                             encoding=serialization.Encoding.PEM,
                             format=serialization.PublicFormat.SubjectPublicKeyInfo
                         )
-                        self.serverSocket.send(self.cipherMsgToServer(pemCC))
-                        self.serverSocket.send(self.cipherMsgToServer(pemRSA))
-                        self.decrypt = True
-                    if "newlisten" in data.decode('utf-8'):
-                        sock = data.decode('utf-8').replace("newlisten", "").replace("(", "").replace(")", "").replace(
-                            "\'", "").split(",")
-                        self.listener.bind((sock[0], int(sock[1])))
-                        self.listener.listen(4)
-                    if "playersock" in data.decode('utf-8'):
-                        sock = data.decode('utf-8').replace("playersock", "").replace("(", "").replace(")", "").replace("\'", "").split(",")
-                        #print(str(self.listener)+"connecting too")
-                        #print("add:"+sock[0]+" port:"+sock[1])
-                        self.pToConnect[self.sessionsNumber].connect((sock[0], int(sock[1])))
-                        self.sessionsNumber += 1
-                    if "acceptNewConnection" in data.decode(('utf-8')):
-                        #print(str(self.listener) + "accepting")
-                        sock, add = self.listener.accept()
-                        self.pToConnect[self.sessionsNumber] = sock
-                        self.sessionsNumber += 1
-                    if "Do you want to play with" in data.decode('utf-8'):
-                        self.serverSocket.send(bytes("ignore", 'utf-8'))
-                    if "NEW TABLE" in data.decode('utf-8'):
-                        self.serverSocket.send(bytes("startgame", 'utf-8'))
-                    if "HAND" in data.decode('utf-8'):
-                        print(self.printHand())
-                    if "started the round" in data.decode('utf-8'):
-                        self.serverSocket.send(bytes("alreadyplayed", 'utf-8'))
-                        self.flagTurn = False
-                        self.flagTurnStart = True
-                    if "Your Turn" in data.decode('utf-8'):
-                        self.flagTurn = True
-                    if "Graveyard" in data.decode('utf-8'):
-                        self.graveyard += int(data.decode('utf-8').split(" ")[1])
-                    if "End of the game" in data.decode('utf-8'):
-                        self.serverSocket.send(bytes(str(self.graveyard), 'utf-8'))
-                        self.hand.clear()
-                        self.graveyard = 0
-                    if "You scored" in data.decode('utf-8'):
-                        self.totalPoints += int(data.decode('utf-8').split(" ")[2])
-                    #if "SHUFFLE" in data.decode('utf-8'):
-                    #    for i in range(0, 3):
-                    #        inputThread = threading.Thread(target=self.msgBetweenPlayers, args=[self.pToConnect[i]])
-                    #        inputThread.daemon = True
-                    #        inputThread.start()
-                        #inputThread = threading.Thread(target=self.msgBetweenPlayers, args=[self.pToConnect[0]])
-                        #inputThread.daemon = True
-                        #inputThread.start()
-                    #if "CARD DISTRIBUTION" in data.decode('utf-8'):
-                    #    for i in range(0, 3):
-                    #        print("here2")
-                    #        self.pToConnect[i].send(bytes("funciona", 'utf-8'))
-                    if "receiving" in data.decode('utf-8'):
-                        i = int(data.decode('utf-8').split(":")[1])
-                        print(self.pToConnect[i].recv(1024).decode())
-                    if "sending" in data.decode('utf-8'):
-                        i = int(data.decode('utf-8').split(":")[1])
-                        self.pToConnect[i].send(bytes("funciona", 'utf-8'))
-                    if not data:
-                        continue
+                        sign = self.cc.sign(pemRSA)
+                        self.serverSocket.send(self.cipherMsgToServer(sign))
+                    else:
+                        print(str(data, 'utf-8'))
+                    #self.decrypt = False
                 else:
-                    data = json.loads(data.decode())
-                    if "deckShuffle" in data.keys():
-                        deck = data["deckShuffle"]
-                        deck = self.shuffle(deck)
-                        deckJson = json.dumps({"deckShuffled": deck})
-                        self.serverSocket.send(deckJson.encode())
-                    elif "deckEBT" in data.keys():
-                        # Pode escolher e pode trocar e baralha sempre
-                        deck = data["deckEBT"]
-                        action = random.randint(1, 100)
-                        # print("A:"+str(action) + " E:" + str(self.probEscolha) + " T:" + str(self.probTroca) +
-                        # " B:" + str(self.probBaralha))
-                        # Escolher uma carta
-                        if action <= self.probChoice:
-                            if len(self.hand) < 13:
-                                card = random.randint(0, 51)
-                                while deck[card] == [0, 0]:
-                                    card = random.randint(0, 51)
-                                self.hand.append(deck[card])
-                                deck[card] = (0, 0)
-                                # deckJson = json.dumps({"deckAfterEBT": deck})
-                                # self.clientSocket.send(deckJson.encode())
-                        # Troca de cartas
-                        change = True
-                        while change:
-                            change = False
+                    data = self.serverSocket.recv(1024)
+                    if not self.is_json(data.decode()):
+                        if data and "acceptNewConnection" not in data.decode('utf-8') and "Graveyard" not in \
+                                data.decode('utf-8') and "newlisten" not in data.decode('utf-8') and "playersock" not in \
+                                data.decode('utf-8') and "RandomToSign" not in data.decode('utf-8')\
+                                and "ServerPublicKey" not in data.decode('utf-8'):
+                            print(str(data, 'utf-8'))
+                        if "ServerPublicKey" in data.decode('utf-8'):
+                            pem = self.serverSocket.recv(1024)
+                            self.serverPubKey = serialization.load_pem_public_key(pem, backend=default_backend())
+                            self.cc = CitizenCard()
+                            pemCC = self.cc.pubKey.public_bytes(
+                                encoding=serialization.Encoding.PEM,
+                                format=serialization.PublicFormat.SubjectPublicKeyInfo
+                            )
+                            pemRSA = self.clientPubKeyRSA.public_bytes(
+                                encoding=serialization.Encoding.PEM,
+                                format=serialization.PublicFormat.SubjectPublicKeyInfo
+                            )
+                            self.serverSocket.send(self.cipherMsgToServer(pemCC))
+                            self.serverSocket.send(self.cipherMsgToServer(pemRSA))
+                            self.decrypt = True
+                        if "newlisten" in data.decode('utf-8'):
+                            sock = data.decode('utf-8').replace("newlisten", "").replace("(", "").replace(")", "").replace(
+                                "\'", "").split(",")
+                            self.listener.bind((sock[0], int(sock[1])))
+                            self.listener.listen(4)
+                        if "playersock" in data.decode('utf-8'):
+                            sock = data.decode('utf-8').replace("playersock", "").replace("(", "").replace(")", "").replace("\'", "").split(",")
+                            #print(str(self.listener)+"connecting too")
+                            #print("add:"+sock[0]+" port:"+sock[1])
+                            self.pToConnect[self.sessionsNumber].connect((sock[0], int(sock[1])))
+                            self.sessionsNumber += 1
+                        if "acceptNewConnection" in data.decode(('utf-8')):
+                            #print(str(self.listener) + "accepting")
+                            sock, add = self.listener.accept()
+                            self.pToConnect[self.sessionsNumber] = sock
+                            self.sessionsNumber += 1
+                        if "Do you want to play with" in data.decode('utf-8'):
+                            self.serverSocket.send(bytes("ignore", 'utf-8'))
+                        if "NEW TABLE" in data.decode('utf-8'):
+                            self.serverSocket.send(bytes("startgame", 'utf-8'))
+                        if "HAND" in data.decode('utf-8'):
+                            print(self.printHand())
+                        if "started the round" in data.decode('utf-8'):
+                            self.serverSocket.send(bytes("alreadyplayed", 'utf-8'))
+                            self.flagTurn = False
+                            self.flagTurnStart = True
+                        if "Your Turn" in data.decode('utf-8'):
+                            self.flagTurn = True
+                        if "Graveyard" in data.decode('utf-8'):
+                            self.graveyard += int(data.decode('utf-8').split(" ")[1])
+                        if "End of the game" in data.decode('utf-8'):
+                            self.serverSocket.send(bytes(str(self.graveyard), 'utf-8'))
+                            self.hand.clear()
+                            self.graveyard = 0
+                        if "You scored" in data.decode('utf-8'):
+                            self.totalPoints += int(data.decode('utf-8').split(" ")[2])
+                        #if "SHUFFLE" in data.decode('utf-8'):
+                        #    for i in range(0, 3):
+                        #        inputThread = threading.Thread(target=self.msgBetweenPlayers, args=[self.pToConnect[i]])
+                        #        inputThread.daemon = True
+                        #        inputThread.start()
+                            #inputThread = threading.Thread(target=self.msgBetweenPlayers, args=[self.pToConnect[0]])
+                            #inputThread.daemon = True
+                            #inputThread.start()
+                        #if "CARD DISTRIBUTION" in data.decode('utf-8'):
+                        #    for i in range(0, 3):
+                        #        print("here2")
+                        #        self.pToConnect[i].send(bytes("funciona", 'utf-8'))
+                        if "receiving" in data.decode('utf-8'):
+                            i = int(data.decode('utf-8').split(":")[1])
+                            print(self.pToConnect[i].recv(1024).decode())
+                        if "sending" in data.decode('utf-8'):
+                            i = int(data.decode('utf-8').split(":")[1])
+                            self.pToConnect[i].send(bytes("funciona", 'utf-8'))
+                        if not data:
+                            continue
+                    else:
+                        data = json.loads(data.decode())
+                        if "deckShuffle" in data.keys():
+                            deck = data["deckShuffle"]
+                            deck = self.shuffle(deck)
+                            deckJson = json.dumps({"deckShuffled": deck})
+                            self.serverSocket.send(deckJson.encode())
+                        elif "deckEBT" in data.keys():
+                            # Pode escolher e pode trocar e baralha sempre
+                            deck = data["deckEBT"]
                             action = random.randint(1, 100)
-                            if action <= self.probSwitch:
-                                if len(self.hand) != 0:
-                                    switch = random.randint(0, len(self.hand))
+                            # print("A:"+str(action) + " E:" + str(self.probEscolha) + " T:" + str(self.probTroca) +
+                            # " B:" + str(self.probBaralha))
+                            # Escolher uma carta
+                            if action <= self.probChoice:
+                                if len(self.hand) < 13:
                                     card = random.randint(0, 51)
                                     while deck[card] == [0, 0]:
                                         card = random.randint(0, 51)
                                     self.hand.append(deck[card])
-                                    deck[card] = self.hand[switch]
-                                    del self.hand[switch]
+                                    deck[card] = (0, 0)
                                     # deckJson = json.dumps({"deckAfterEBT": deck})
                                     # self.clientSocket.send(deckJson.encode())
-                                    change = True
-                        # BARALHAR
-                        deck = self.shuffle(deck)
-                        deckJson = json.dumps({"deckAfterEBT": deck})
-                        self.serverSocket.send(deckJson.encode())
-            #except Exception as e:
-            #    print("Exception: "+str(e))
-            #    self.clientDisconnect = True
-            #    self.clientSocket.close()
+                            # Troca de cartas
+                            change = True
+                            while change:
+                                change = False
+                                action = random.randint(1, 100)
+                                if action <= self.probSwitch:
+                                    if len(self.hand) != 0:
+                                        switch = random.randint(0, len(self.hand))
+                                        card = random.randint(0, 51)
+                                        while deck[card] == [0, 0]:
+                                            card = random.randint(0, 51)
+                                        self.hand.append(deck[card])
+                                        deck[card] = self.hand[switch]
+                                        del self.hand[switch]
+                                        # deckJson = json.dumps({"deckAfterEBT": deck})
+                                        # self.clientSocket.send(deckJson.encode())
+                                        change = True
+                            # BARALHAR
+                            deck = self.shuffle(deck)
+                            deckJson = json.dumps({"deckAfterEBT": deck})
+                            self.serverSocket.send(deckJson.encode())
+            except Exception as e:
+                print("Exception: "+str(e))
+                self.clientDisconnect = True
+                self.serverSocket.close()
 
 
 
