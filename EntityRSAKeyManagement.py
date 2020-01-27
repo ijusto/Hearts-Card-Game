@@ -10,7 +10,7 @@ class EntityRSAKeyManagement:
     def __init__(self, key_size):
         self.key_size = key_size # 4096
         self.pem_pwd = None # "ola"
-        self.pem_file = None + ".txt"
+        self.pem_file = None
         self.clear_text_filename = None # "contentToCipher.txt"
         self.ciphertext_filename = None # "cipheredContent.txt"
         self.priv_key = None

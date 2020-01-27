@@ -342,5 +342,5 @@ class Client:
     def createClientKeys(self):
         self.rsaKeyManagement = EntityRSAKeyManagement(4096)
         self.rsaKeyManagement.generateRSAKey()
-        self.clientPrivKeyRSA = self.keyManagement.getRSAPrivKey()
-        self.clientPubKeyRSA = self.keyManagement.getRSAPubKey()
+        self.clientPrivKeyRSA = self.rsaKeyManagement.getRSAPrivKey()
+        self.clientPubKeyRSA = self.rsaKeyManagement.getRSAPubKey()
