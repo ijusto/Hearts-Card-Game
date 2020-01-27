@@ -154,11 +154,11 @@ class Server:
                 if not invitationFlag:
                     self.sendLobbyMenu(client_socket, client_username)
                 invitationFlag = False
-                invitation = client_socket.recv(1024).decode()
+                invitation = self.decipherMsgFromClient(client_socket.recv(1024)).decode()
 
                 # Se o invite for para ele proprio
                 if (invitation == client_username):
-                    client_socket.send(bytes("You can't invite your self", 'utf-8'))
+                    client_socket.send(self.cipherMsgToClient("You can't invite your self"))
                 else:
                     checker = False
                     for (user_socket, user_address), (user_name, user_pubkey) in self.playersConnected.items():
@@ -166,8 +166,7 @@ class Server:
                             resp = ""
                             while resp != "y" and resp != "n":
                                 # Envia convite para o player
-                                user_socket.send(
-                                    bytes("Do you want to play with " + client_username + "?[y/n]", "utf-8"))
+                                user_socket.send(self.cipherMsgToClient("Do you want to play with " + client_username + "?[y/n]"))
                                 resp = user_socket.recv(1024).decode()
                                 # Player aceita convite
                                 if resp == "y":
