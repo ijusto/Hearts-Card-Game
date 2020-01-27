@@ -111,18 +111,14 @@ class Server:
             validate = 'Verification failed'
             while validate == 'Verification failed':
                 # ask for the citizenCard
-                client_socket.send(bytes("CitizenCard Authentication: ", 'utf-8'))
-                print(self.decipherMsgFromClient(client_socket.recv(1024)))
                 pem = self.decipherMsgFromClient(client_socket.recv(1024))
                 clientkey = serialization.load_pem_public_key(pem, backend=default_backend())
-
-
-                #clientkeyder = pickle.loads(s)
                 cc_temp = CitizenCard()
                 cc_temp.setPubKey(clientkey)
-                #clientkey = cc_temp.pubKey
                 randomToSign = random.randint(0, 1000)
-                client_socket.send(bytes("RandomToSign:"+str(randomToSign), 'utf-8'))
+                d = self.cipherMsgToClient(bytes("RandomToSign:"+str(randomToSign), 'utf-8'), clientkey)
+                print(d)
+                client_socket.send(d)
                 signature = client_socket.recv(1024)
                 validate = cc_temp.validateSignature(bytes(str(randomToSign), 'utf-8'), signature)
                 client_socket.send(bytes(validate, 'utf-8'))
@@ -656,6 +652,28 @@ class Server:
 
     def handler(self, client_socket, client_address):
         self.lobby(client_socket, client_address)
+
+    def cipherMsgToClient(self, msg, clientkey):
+        # Calculate the maximum amount of data we can encrypt with OAEP + SHA256
+        maxLenG = (clientkey.key_size // 8) - 2 * hashes.SHA256.digest_size - 2
+        maxLen = maxLenG
+        minLen = 0
+        ciphertext = bytes()
+        if maxLenG >= len(msg):
+            ciphertext = clientkey.encrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                                                                     hashes.SHA256(), None))
+        else:
+            while minLen <= len(msg):
+                plaintext = msg[minLen:maxLen]
+                minLen = maxLen
+                if maxLen + maxLenG > len(msg):
+                    maxLen += maxLenG
+                else:
+                    maxLen = len(msg)
+                ciphertext += clientkey.encrypt(plaintext, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                                                                                hashes.SHA256(), None))
+
+        return ciphertext
 
     def decipherMsgFromClient(self, msg):
         maxLenG = 512

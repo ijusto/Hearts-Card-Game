@@ -36,6 +36,8 @@ class Client:
 
     hand = []
 
+    decrypt = False
+
     graveyard = 0
     totalPoints = 0
 
@@ -121,7 +123,29 @@ class Client:
         return ciphertext
 
     def decipherMsgFromServer(self, msg):
-        return self.serverPubKey.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
+        maxLenG = 256
+        print(msg)
+        print("size:"+str(len(msg)))
+        maxLen = maxLenG
+        minLen = 0
+        plaintext = bytes()
+        if maxLenG >= len(msg):
+            print("here")
+            plaintext = self.cc.privKey.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                                                                     hashes.SHA256(), None))
+            print("here2")
+        else:
+            while minLen < len(msg):
+                ciphertext = msg[minLen:maxLen]
+                minLen = maxLen
+                if maxLen + maxLenG > len(msg):
+                    maxLen += maxLenG
+                else:
+                    maxLen = len(msg)
+                plaintext += self.cc.privKey.decrypt(ciphertext, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                                                                                 hashes.SHA256(), None))
+        return plaintext
+
 
     def __init__(self, address):
         self.clientSocket.connect((address, 10002))
@@ -138,7 +162,14 @@ class Client:
         inputThread.start()
 
         while not self.clientDisconnect:
-            try:
+            #try:
+            if self.decrypt:
+                data = self.decipherMsgFromServer(self.clientSocket.recv(1024)).decode()
+                if "RandomToSign" in data:
+                    sign = self.cc.sign(data.split(":")[1])
+                    self.clientSocket.send(sign)
+                self.decrypt = False
+            else:
                 data = self.clientSocket.recv(1024)
                 if not self.is_json(data.decode()):
                     if data and "acceptNewConnection" not in data.decode('utf-8') and "Graveyard" not in \
@@ -151,7 +182,13 @@ class Client:
                     if "ServerPublicKey" in data.decode('utf-8'):
                         pem = self.clientSocket.recv(1024)
                         self.serverPubKey = serialization.load_pem_public_key(pem, backend=default_backend())
-                        self.clientSocket.send(self.cipherMsgToServer(bytes("olaaaaaaa", 'utf-8')))
+                        self.cc = CitizenCard()
+                        pem = self.cc.pubKey.public_bytes(
+                            encoding=serialization.Encoding.PEM,
+                            format=serialization.PublicFormat.SubjectPublicKeyInfo
+                        )
+                        self.clientSocket.send(self.cipherMsgToServer(pem))
+                        self.decrypt = True
                     if "newlisten" in data.decode('utf-8'):
                         sock = data.decode('utf-8').replace("newlisten", "").replace("(", "").replace(")", "").replace(
                             "\'", "").split(",")
@@ -170,18 +207,6 @@ class Client:
                         self.sessionsNumber += 1
                     if "Do you want to play with" in data.decode('utf-8'):
                         self.clientSocket.send(bytes("ignore", 'utf-8'))
-                    if "CitizenCard Authentication:" in data.decode('utf-8'):
-                        self.cc = CitizenCard()
-                        #to_send = pickle.dumps(self.cc.pubKeyDer)
-                        #self.clientSocket.send(self.cipherMsgToServer(to_send))
-                        pem = self.cc.pubKey.public_bytes(
-                            encoding=serialization.Encoding.PEM,
-                            format=serialization.PublicFormat.SubjectPublicKeyInfo
-                        )
-                        self.clientSocket.send(self.cipherMsgToServer(pem))
-                    if "RandomToSign" in data.decode('utf-8'):
-                        sign = self.cc.sign(data.decode('utf-8').split(":")[1])
-                        self.clientSocket.send(sign)
                     if "NEW TABLE" in data.decode('utf-8'):
                         self.clientSocket.send(bytes("startgame", 'utf-8'))
                     if "HAND" in data.decode('utf-8'):
@@ -264,7 +289,7 @@ class Client:
                         deck = self.shuffle(deck)
                         deckJson = json.dumps({"deckAfterEBT": deck})
                         self.clientSocket.send(deckJson.encode())
-            except Exception as e:
-                print(str(e))
-                self.clientDisconnect = True
-                self.clientSocket.close()
+            #except Exception as e:
+            #    print("Exception: "+str(e))
+            #    self.clientDisconnect = True
+            #    self.clientSocket.close()
