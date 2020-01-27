@@ -5,7 +5,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 
-class EntityKeyManagement:
+class EntityRSAKeyManagement:
 
     def __init__(self, key_size):
         self.key_size = key_size # 4096
@@ -16,7 +16,7 @@ class EntityKeyManagement:
         self.priv_key = None
         self.pub_key = None
 
-    def getPrivKey(self):
+    def getRSAPrivKey(self):
         priv_key = self.priv_key
         if self.pem_file:
             # Load key pair to a PEM file protected by a password
@@ -25,14 +25,14 @@ class EntityKeyManagement:
                                                               default_backend())
         return priv_key
 
-    def getPubKey(self):
-        priv_key = self.getPrivKey()
+    def getRSAPubKey(self):
+        priv_key = self.getRSAPrivKey()
         pubKey = None
         if priv_key:
             pubKey = priv_key.public_key()
         return pubKey
 
-    def generateKey(self):
+    def generateRSAKey(self):
         if self.pem_file:
             f = open(self.pem_file, "wb")
         # Use 65537 (2^16 + 1) as public exponent

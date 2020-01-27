@@ -5,7 +5,7 @@ import time
 #from citizencard import CitizenCard
 import pickle
 from cryptography.hazmat.primitives.asymmetric import rsa
-from EntityKeyManagement import EntityKeyManagement
+from EntityRSAKeyManagement import EntityRSAKeyManagement
 import random
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
@@ -16,6 +16,7 @@ class Server:
 
     serverPrivKey = None
     serverPubKey = None
+    rsaKeyManagement = None
 
     # table = {} # key: tableId, value:playersList
     # tableId = 1
@@ -659,6 +660,8 @@ class Server:
         self.lobby(client_socket, client_address)
 
     def cipherMsgToClient(self, msg, clientkey):
+        return self.rsaKeyManagement.rsaCipheringConfidentially(msg,clientkey)
+        '''
         # Calculate the maximum amount of data we can encrypt with OAEP + SHA256
         maxLenG = (clientkey.key_size // 8) - 2 * hashes.SHA256.digest_size - 2
         maxLen = maxLenG
@@ -679,8 +682,11 @@ class Server:
                                                                                 hashes.SHA256(), None))
 
         return ciphertext
+        '''
 
     def authenticateMsgFromClient(self, msg, clientkey):
+        return self.rsaKeyManagement.rsaDecipheringAuthenticate(msg,clientkey)
+        '''
         maxLenG = 512
         maxLen = maxLenG
         minLen = 0
@@ -699,8 +705,11 @@ class Server:
                 plaintext += clientkey.decrypt(ciphertext, padding.OAEP(padding.MGF1(hashes.SHA256()),
                                                                                  hashes.SHA256(), None))
         return plaintext
+        '''
 
     def decipherMsgFromClient(self, msg):
+        return self.rsaKeyManagement.rsaDecipheringConfidentially(msg)
+        '''
         maxLenG = 512
         maxLen = maxLenG
         minLen = 0
@@ -719,6 +728,7 @@ class Server:
                 plaintext += self.serverPrivKey.decrypt(ciphertext, padding.OAEP(padding.MGF1(hashes.SHA256()),
                                                                                    hashes.SHA256(), None))
         return plaintext
+        '''
 
     def run(self):
         self.createServerKeys()
@@ -749,8 +759,8 @@ class Server:
             return 'Verification failed'
 
     def createServerKeys(self):
-        keyManagement = EntityKeyManagement(4096)
-        keyManagement.generateKey()
-        self.serverPrivKey = keyManagement.getPrivKey()
-        self.serverPubKey = keyManagement.getPubKey()
+        self.rsaKeyManagement = EntityRSAKeyManagement(4096)
+        self.rsaKeyManagement.generateRSAKey()
+        self.serverPrivKey = keyManagement.getRSAPrivKey()
+        self.serverPubKey = keyManagement.getRSAPubKey()
 

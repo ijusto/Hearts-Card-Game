@@ -9,7 +9,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
-from EntityKeyManagement import EntityKeyManagement
+from EntityRSAKeyManagement import EntityRSAKeyManagement
 from cryptography.hazmat.primitives import serialization
 
 class Client:
@@ -40,6 +40,7 @@ class Client:
     decrypt = False
     clientPrivKeyRSA = None
     clientPubKeyRSA = None
+    rsaKeyManagement = None
 
     graveyard = 0
     totalPoints = 0
@@ -104,6 +105,8 @@ class Client:
             deck = decipherHand
 
     def cipherMsgToServer(self, msg):
+        return self.rsaKeyManagement.rsaCipheringConfidentially(msg, self.serverPubKey)
+        '''
         # Calculate the maximum amount of data we can encrypt with OAEP + SHA256
         maxLenG = (self.serverPubKey.key_size // 8) - 2 * hashes.SHA256.digest_size - 2
         maxLen = maxLenG
@@ -124,8 +127,11 @@ class Client:
                                                                                    hashes.SHA256(), None))
 
         return ciphertext
+        '''
 
-    def authenticaMsgToServer(self, msg):
+    def authenticateMsgToServer(self, msg):
+        return self.rsaKeyManagement.rsaCipheringAuthenticate(msg)
+        '''
         # Calculate the maximum amount of data we can encrypt with OAEP + SHA256
         maxLenG = (self.clientPrivKeyRSA.key_size // 8) - 2 * hashes.SHA256.digest_size - 2
         maxLen = maxLenG
@@ -146,9 +152,12 @@ class Client:
                                                                      hashes.SHA256(), None))
 
         return ciphertext
+        '''
 
 
     def decipherMsgFromServer(self, msg):
+        return self.rsaKeyManagement.rsaDecipheringConfidentially(msg)
+        '''
         maxLenG = 512
         maxLen = maxLenG
         minLen = 0
@@ -167,6 +176,7 @@ class Client:
                 plaintext += self.clientPrivKeyRSA.decrypt(ciphertext, padding.OAEP(padding.MGF1(hashes.SHA256()),
                                                                                  hashes.SHA256(), None))
         return plaintext
+        '''
 
 
     def __init__(self, address):
@@ -330,7 +340,7 @@ class Client:
 
 
     def createClientKeys(self):
-        keyManagement = EntityKeyManagement(4096)
-        keyManagement.generateKey()
-        self.clientPrivKeyRSA = keyManagement.getPrivKey()
-        self.clientPubKeyRSA = keyManagement.getPubKey()
+        self.rsaKeyManagement = EntityRSAKeyManagement(4096)
+        self.rsaKeyManagement.generateRSAKey()
+        self.clientPrivKeyRSA = self.keyManagement.getRSAPrivKey()
+        self.clientPubKeyRSA = self.keyManagement.getRSAPubKey()
