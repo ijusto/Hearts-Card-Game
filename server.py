@@ -42,25 +42,26 @@ class Server:
         self.numberOfClients = 0
 
     # writes the lobby
-    def sendLobbyMenu(self, userSocket, userName):
-        userSocket.send(bytes("Lobby:\n", 'utf-8'))
-        userSocket.send(bytes("SoloPlayers:\n", 'utf-8'))
+    def sendLobbyMenu(self, userSocket, userName, clientkey):
+        userSocket.send(self.cipherMsgToClient(bytes("Lobby:\n", 'utf-8'), clientkey))
+        userSocket.send(self.cipherMsgToClient(bytes("SoloPlayers:\n", 'utf-8'), clientkey))
         for un, ucc in self.playersConnected.values():
             if un != userName:
-                userSocket.send(bytes(un + "\n", 'utf-8'))
-        userSocket.send(bytes("Parties:\n", 'utf-8'))
+                userSocket.send(self.cipherMsgToClient(bytes(un + "\n", 'utf-8'), clientkey))
+        userSocket.send(self.cipherMsgToClient(bytes("Parties:\n", 'utf-8'), clientkey))
         for lst in self.parties.values():
             partyLobby = []
             for elem in lst:
                 for (user_socket, user_address), (user_name, user_pubkey) in elem.items():
                     partyLobby.append(user_name)
             if len(partyLobby) != 0:
-                userSocket.send(bytes(str(partyLobby) + "\n", 'utf-8'))
-        userSocket.send(bytes("\nInvite a player (using his username)", 'utf-8'))
+                userSocket.send(self.cipherMsgToClient(bytes(str(partyLobby) + "\n", 'utf-8'), clientkey))
+        userSocket.send(self.cipherMsgToClient(bytes("\nInvite a player (using his username)", 'utf-8'), clientkey))
 
         # verify if a member is in a party
         if self.verifyPartyMember(userName):
-            userSocket.send(bytes("\nWrite LEAVE to leave the party\n", 'utf-8'))
+            userSocket.send(self.cipherMsgToClient(
+                bytes("\nWrite LEAVE to leave the party\n", 'utf-8'), clientkey))
 
     def verifyPartyMember(self, userName):
         verifier = False
@@ -77,31 +78,28 @@ class Server:
         while not validUser:
             validUser = True
             client_socket.send(self.cipherMsgToClient(bytes("Username: ", 'utf-8'), clientkey))
-            #client_socket.send(bytes("Username: ", 'utf-8'))
             client_username = self.decipherMsgFromClient(client_socket.recv(1024)).decode()
-            print("here")
             for value in self.playersConnected.values():
                 if value[0] == client_username:
                     validUser = False
                     break
             if not validUser:
                 client_socket.send(self.cipherMsgToClient(bytes("This Username was already taken",'utf-8'), clientkey))
-                #client_socket.send(bytes("This Username was already taken", 'utf-8'))
         return client_username
 
     def updateLobbyChanges(self, client_socket, client_username, joined):
         for (user_socket, user_address), (user_name, user_pubkey) in self.playersConnected.items():
             if user_socket != client_socket:
                 if joined:
-                    user_socket.send(bytes("\n" + client_username + " joined the lobby\n", 'utf-8'))
-                self.sendLobbyMenu(user_socket, user_name)
+                    user_socket.send(self.cipherMsgToClient(bytes("\n" + client_username + " joined the lobby\n", 'utf-8'), user_pubkey))
+                self.sendLobbyMenu(user_socket, user_name, user_pubkey)
         for party_num, lst in self.parties.items():
             for user in lst:
                 for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                     if user_socket != client_socket:
                         if joined:
-                            user_socket.send(bytes("\n" + client_username + " joined the lobby\n", 'utf-8'))
-                        self.sendLobbyMenu(user_socket, user_name)
+                            user_socket.send(self.cipherMsgToClient(bytes("\n" + client_username + " joined the lobby\n", 'utf-8'), user_pubkey))
+                        self.sendLobbyMenu(user_socket, user_name, user_pubkey)
 
     def lobby(self, client_socket, client_address):
         try:
@@ -119,14 +117,9 @@ class Server:
                 pemRSA = self.decipherMsgFromClient(client_socket.recv(1024))
                 clientkey = serialization.load_pem_public_key(pem, backend=default_backend())
                 clientkeyRSA = serialization.load_pem_public_key(pemRSA, backend=default_backend())
-
-                #cc_temp = CitizenCard()
-                #cc_temp.setPubKey(clientkey)
-                #randomToSign = random.randint(0, 1000)
                 d = self.cipherMsgToClient(bytes("Sign your pubkey", 'utf-8'), clientkeyRSA)
                 client_socket.send(d)
                 signature = self.decipherMsgFromClient(client_socket.recv(1024))
-                #validate = cc_temp.validateSignature(pemRSA, signature)
                 validate = self.validateSignature(clientkey, pemRSA, signature)
                 client_socket.send(self.cipherMsgToClient(bytes(validate, 'utf-8'), clientkeyRSA))
 
@@ -135,10 +128,11 @@ class Server:
 
             connection = (client_socket, client_address)
             # Add to the soloplayers
-            dicAux = {connection: (client_username, clientkey)}
-            self.playersConnected.update({connection: (client_username, clientkey)})
+            dicAux = {connection: (client_username, clientkeyRSA)}
+            self.playersConnected.update({connection: (client_username, clientkeyRSA)})
 
             # Sending information to other players about the join
+            self.updateLobbyChanges(client_socket, client_username, True)
             self.updateLobbyChanges(client_socket, client_username, True)
 
         except:
@@ -154,13 +148,12 @@ class Server:
             try:
                 # Caso a ultima mensagem enviada seja "ignore"
                 if not invitationFlag:
-                    self.sendLobbyMenu(client_socket, client_username)
+                    self.sendLobbyMenu(client_socket, client_username, clientkeyRSA)
                 invitationFlag = False
                 invitation = self.decipherMsgFromClient(client_socket.recv(1024)).decode()
-
                 # Se o invite for para ele proprio
                 if (invitation == client_username):
-                    client_socket.send(self.cipherMsgToClient("You can't invite your self"))
+                    client_socket.send(self.cipherMsgToClient(bytes("You can't invite your self",'utf-8'), clientkeyRSA))
                 else:
                     checker = False
                     for (user_socket, user_address), (user_name, user_pubkey) in self.playersConnected.items():
@@ -168,11 +161,11 @@ class Server:
                             resp = ""
                             while resp != "y" and resp != "n":
                                 # Envia convite para o player
-                                user_socket.send(self.cipherMsgToClient("Do you want to play with " + client_username + "?[y/n]"))
-                                resp = user_socket.recv(1024).decode()
+                                user_socket.send(self.cipherMsgToClient(bytes("Do you want to play with " + client_username + "?[y/n]", 'utf-8'), user_pubkey))
+                                resp = self.decipherMsgFromClient(user_socket.recv(1024)).decode()
                                 # Player aceita convite
                                 if resp == "y":
-                                    client_socket.send(bytes(user_name + " accepted the invite", 'utf-8'))
+                                    client_socket.send(self.cipherMsgToClient(bytes(user_name + " accepted the invite", 'utf-8'), clientkeyRSA))
                                     auxList = [party_num for party_num, lst in self.parties.items() if dicAux in lst]
                                     # Se o client ainda não estiver numa party
                                     if len(auxList) == 0:
@@ -194,7 +187,7 @@ class Server:
                                     self.updateLobbyChanges(client_socket, client_username, False)
                                 # Player recusa convite
                                 elif resp == "n":
-                                    client_socket.send(bytes(user_name + " refused the invite", 'utf-8'))
+                                    client_socket.send(self.cipherMsgToClient(bytes(user_name + " refused the invite", 'utf-8'), clientkeyRSA))
                             break
                     # Se o player convidado já estiver numa party
                     if not checker:
@@ -206,18 +199,19 @@ class Server:
                                         if self.verifyPartyMember(client_username):
                                             checker = True
                                             client_socket.send(
-                                                bytes("You'te already in a party, you can't join another", "utf-8"))
+                                                self.cipherMsgToClient(bytes("You'te already in a party, you can't join another", "utf-8"), clientkeyRSA))
                                             break
                                         checker = True
                                         resp = ""
                                         while resp != "y" and resp != "n":
-                                            user_socket.send(
+                                            user_socket.send(self.cipherMsgToClient(
                                                 bytes("Do you want to play with " + client_username + "?[y/n]",
-                                                      "utf-8"))
-                                            resp = user_socket.recv(1024).decode()
+                                                      "utf-8"), user_pubkey))
+                                            resp = self.decipherMsgFromClient(user_socket.recv(1024)).decode()
                                             # Player accepts the invite
                                             if resp == "y":
-                                                client_socket.send(bytes(user_name + " accepted the invite", 'utf-8'))
+                                                client_socket.send(self.cipherMsgToClient(
+                                                    bytes(user_name + " accepted the invite", 'utf-8'), clientkeyRSA))
                                                 # Delete player from solo players
                                                 del self.playersConnected[connection]
                                                 # Add player to party
@@ -227,14 +221,16 @@ class Server:
                                             # Player denies the invite
                                             elif resp == "n":
                                                 checker = True
-                                                client_socket.send(bytes(user_name + " refused the invite", 'utf-8'))
+                                                client_socket.send(self.cipherMsgToClient(
+                                                    bytes(user_name + " refused the invite", 'utf-8'), clientkeyRSA))
                     # Se o player convidade não estiver no lobby, nem numa party
                     # OU ser o utilizador quiser sair da party
                     if not checker:
                         if invitation == "LEAVE":
                             # Se o player nao estiver numa party
                             if not self.verifyPartyMember(client_username):
-                                client_socket.send(bytes("You're not in a party", 'utf-8'))
+                                client_socket.send(self.cipherMsgToClient(
+                                    bytes("You're not in a party", 'utf-8'), clientkeyRSA))
                             else:
                                 for party_num, lst in self.parties.items():
                                     if dicAux in lst:
@@ -244,13 +240,14 @@ class Server:
                                                 for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                                     if client_socket != user_socket:
                                                         # Enviar informaçao para o outro membro da party
-                                                        user_socket.send(bytes(
+                                                        user_socket.send(self.cipherMsgToClient(bytes(
                                                             "\n" + client_username + " leave the party, party was deleted\n",
-                                                            'utf-8'))
+                                                            'utf-8'), user_pubkey))
                                                     # Adicionar players da party aos soloplayer
                                                     self.playersConnected.update(
                                                         {(user_socket, user_address): (user_name, user_pubkey)})
-                                            client_socket.send(bytes("You left the party", 'utf-8'))
+                                            client_socket.send(self.cipherMsgToClient(
+                                                bytes("You left the party", 'utf-8'), clientkeyRSA))
                                             # Delete party
                                             del self.parties[party_num]
                                             break
@@ -259,11 +256,11 @@ class Server:
                                                 for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                                     if client_socket != user_socket:
                                                         # Enviar informaçao que um membro saiu da party
-                                                        user_socket.send(
-                                                            bytes("\n" + client_username + " leave the party", 'utf-8'))
+                                                        user_socket.send(self.cipherMsgToClient(
+                                                            bytes("\n" + client_username + " leave the party", 'utf-8'), user_pubkey))
                                             # Remover player da party
                                             lst.remove(dicAux)
-                                            client_socket.send(bytes("You left the party", 'utf-8'))
+                                            client_socket.send(self.cipherMsgToClient(bytes("You left the party", 'utf-8'), clientkeyRSA))
                                             # Adicionar player à party
                                             self.playersConnected.update(dicAux)
                                             break
@@ -271,19 +268,20 @@ class Server:
                                 for (user_socket2, user_address2), (
                                         user_name2, user_pubkey2) in self.playersConnected.items():
                                     if user_socket2 != client_socket:
-                                        self.sendLobbyMenu(user_socket2, user_name2)
+                                        self.sendLobbyMenu(user_socket2, user_name2, user_pubkey2)
                                     for party_num, lst in self.parties.items():
                                         for user in lst:
                                             for (user_socket2, user_address2), (user_name2, user_pubkey2) in user.items():
                                                 if user_socket2 != client_socket:
-                                                    self.sendLobbyMenu(user_socket2, user_name2)
+                                                    self.sendLobbyMenu(user_socket2, user_name2, user_pubkey2)
                         # Ignorar mensagem (resolver problema do duplo convite)
                         elif invitation == "ignore":
                             invitationFlag = True
                         elif invitation == "startgame":
                             break
                         else:
-                            client_socket.send(bytes("\nThat players doesn't exist\n", 'utf-8'))
+                            client_socket.send(self.cipherMsgToClient(
+                                bytes("\nThat players doesn't exist\n", 'utf-8'), clientkeyRSA))
                     # VERIFICAR SE PARTY = 4
                     party44 = False
                     for party_num, lst in self.parties.items():
@@ -293,11 +291,13 @@ class Server:
                                     if user_socket == client_socket:
                                         party44 = True
                                     else:
-                                        user_socket.send(bytes("\nCREATING NEW TABLE\n", 'utf-8'))
+                                        user_socket.send(self.cipherMsgToClient(
+                                            bytes("\nCREATING NEW TABLE\n", 'utf-8'), user_pubkey))
                         if party44:
                             break
                     if party44:
-                        client_socket.send(bytes("\nCREATING NEW TABLE\n", 'utf-8'))
+                        client_socket.send(self.cipherMsgToClient(
+                            bytes("\nCREATING NEW TABLE\n", 'utf-8'), clientkeyRSA))
                         invitationFlag = True
                         self.tables.update({party_num: self.parties[party_num]})
                         # the program is able to exit regardless of if there's any threads still running
@@ -349,11 +349,11 @@ class Server:
                     del self.playersConnected[connection]
                 # Atualiza lobby do players
                 for (user_socket2, user_address2), (user_name2, user_pubkey2) in self.playersConnected.items():
-                    self.sendLobbyMenu(user_socket2, user_name2)
+                    self.sendLobbyMenu(user_socket2, user_name2, user_pubkey2)
                 for party_num, lst in self.parties.items():
                     for user in lst:
                         for (user_socket2, user_address2), (user_name2, user_pubkey2) in user.items():
-                            self.sendLobbyMenu(user_socket2, user_name2)
+                            self.sendLobbyMenu(user_socket2, user_name2, user_pubkey2)
                 client_socket.close()
                 self.clientDisconnected = True
                 break
@@ -660,75 +660,14 @@ class Server:
         self.lobby(client_socket, client_address)
 
     def cipherMsgToClient(self, msg, clientkey):
-        return self.rsaKeyManagement.rsaCipheringConfidentially(msg,clientkey)
-        '''
-        # Calculate the maximum amount of data we can encrypt with OAEP + SHA256
-        maxLenG = (clientkey.key_size // 8) - 2 * hashes.SHA256.digest_size - 2
-        maxLen = maxLenG
-        minLen = 0
-        ciphertext = bytes()
-        if maxLenG >= len(msg):
-            ciphertext = clientkey.encrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()),
-                                                                     hashes.SHA256(), None))
-        else:
-            while minLen <= len(msg):
-                plaintext = msg[minLen:maxLen]
-                minLen = maxLen
-                if maxLen + maxLenG > len(msg):
-                    maxLen += maxLenG
-                else:
-                    maxLen = len(msg)
-                ciphertext += clientkey.encrypt(plaintext, padding.OAEP(padding.MGF1(hashes.SHA256()),
-                                                                                hashes.SHA256(), None))
-
-        return ciphertext
-        '''
+        return self.rsaKeyManagement.rsaCipheringConfidentially(msg, clientkey)
 
     def authenticateMsgFromClient(self, msg, clientkey):
         return self.rsaKeyManagement.rsaDecipheringAuthenticate(msg,clientkey)
-        '''
-        maxLenG = 512
-        maxLen = maxLenG
-        minLen = 0
-        plaintext = bytes()
-        if maxLenG >= len(msg):
-            plaintext = clientkey.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()),
-                                                                     hashes.SHA256(), None))
-        else:
-            while minLen < len(msg):
-                ciphertext = msg[minLen:maxLen]
-                minLen = maxLen
-                if maxLen + maxLenG > len(msg):
-                    maxLen += maxLenG
-                else:
-                    maxLen = len(msg)
-                plaintext += clientkey.decrypt(ciphertext, padding.OAEP(padding.MGF1(hashes.SHA256()),
-                                                                                 hashes.SHA256(), None))
-        return plaintext
-        '''
 
     def decipherMsgFromClient(self, msg):
         return self.rsaKeyManagement.rsaDecipheringConfidentially(msg)
-        '''
-        maxLenG = 512
-        maxLen = maxLenG
-        minLen = 0
-        plaintext = bytes()
-        if maxLenG >= len(msg):
-            plaintext = self.serverPrivKey.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()),
-                                                            hashes.SHA256(), None))
-        else:
-            while minLen < len(msg):
-                ciphertext = msg[minLen:maxLen]
-                minLen = maxLen
-                if maxLen+maxLenG > len(msg):
-                    maxLen += maxLenG
-                else:
-                    maxLen = len(msg)
-                plaintext += self.serverPrivKey.decrypt(ciphertext, padding.OAEP(padding.MGF1(hashes.SHA256()),
-                                                                                   hashes.SHA256(), None))
-        return plaintext
-        '''
+
 
     def run(self):
         self.createServerKeys()

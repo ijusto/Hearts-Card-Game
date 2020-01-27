@@ -50,7 +50,7 @@ class Client:
             try:
                 if self.flagTurn:
                     sentence = input("")
-                    self.serverSocket.send(self.cipherMsgToServer(sentence))
+                    self.serverSocket.send(self.cipherMsgToServer(bytes(sentence,'utf-8')))
                     if sentence in self.printHand():
                         card = sentence.split(" ")
                         court_n_ace = ["J", "Q", "K", "A"]
@@ -106,78 +106,13 @@ class Client:
 
     def cipherMsgToServer(self, msg):
         return self.rsaKeyManagement.rsaCipheringConfidentially(msg, self.serverPubKey)
-        '''
-        # Calculate the maximum amount of data we can encrypt with OAEP + SHA256
-        maxLenG = (self.serverPubKey.key_size // 8) - 2 * hashes.SHA256.digest_size - 2
-        maxLen = maxLenG
-        minLen = 0
-        ciphertext = bytes()
-        if maxLenG >= len(msg):
-            ciphertext = self.serverPubKey.encrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()),
-                                                          hashes.SHA256(), None))
-        else:
-            while minLen <= len(msg):
-                plaintext = msg[minLen:maxLen]
-                minLen = maxLen
-                if maxLen+maxLenG > len(msg):
-                    maxLen += maxLenG
-                else:
-                    maxLen = len(msg)
-                ciphertext += self.serverPubKey.encrypt(plaintext, padding.OAEP(padding.MGF1(hashes.SHA256()),
-                                                                                   hashes.SHA256(), None))
-
-        return ciphertext
-        '''
 
     def authenticateMsgToServer(self, msg):
         return self.rsaKeyManagement.rsaCipheringAuthenticate(msg)
-        '''
-        # Calculate the maximum amount of data we can encrypt with OAEP + SHA256
-        maxLenG = (self.clientPrivKeyRSA.key_size // 8) - 2 * hashes.SHA256.digest_size - 2
-        maxLen = maxLenG
-        minLen = 0
-        ciphertext = bytes()
-        if maxLenG >= len(msg):
-            ciphertext = self.clientPrivKeyRSA.encrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()),
-                                                                     hashes.SHA256(), None))
-        else:
-            while minLen <= len(msg):
-                plaintext = msg[minLen:maxLen]
-                minLen = maxLen
-                if maxLen + maxLenG > len(msg):
-                    maxLen += maxLenG
-                else:
-                    maxLen = len(msg)
-                ciphertext += self.clientPrivKeyRSA.encrypt(plaintext, padding.OAEP(padding.MGF1(hashes.SHA256()),
-                                                                     hashes.SHA256(), None))
-
-        return ciphertext
-        '''
 
 
     def decipherMsgFromServer(self, msg):
         return self.rsaKeyManagement.rsaDecipheringConfidentially(msg)
-        '''
-        maxLenG = 512
-        maxLen = maxLenG
-        minLen = 0
-        plaintext = bytes()
-        if maxLenG >= len(msg):
-            plaintext = self.clientPrivKeyRSA.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()),
-                                                                     hashes.SHA256(), None))
-        else:
-            while minLen < len(msg):
-                ciphertext = msg[minLen:maxLen]
-                minLen = maxLen
-                if maxLen + maxLenG > len(msg):
-                    maxLen += maxLenG
-                else:
-                    maxLen = len(msg)
-                plaintext += self.clientPrivKeyRSA.decrypt(ciphertext, padding.OAEP(padding.MGF1(hashes.SHA256()),
-                                                                                 hashes.SHA256(), None))
-        return plaintext
-        '''
-
 
     def __init__(self, address):
         self.createClientKeys()
@@ -200,7 +135,10 @@ class Client:
             if self.decrypt:
                 data = self.decipherMsgFromServer(self.serverSocket.recv(1024)).decode()
                 if "Do you want to play with" in data:
-                    self.serverSocket.send(bytes("ignore", 'utf-8'))
+                    self.serverSocket.send(self.cipherMsgToServer(bytes("ignore", 'utf-8')))
+                if "CREATING NEW TABLE" in data:
+                    self.serverSocket.send(self.cipherMsgToServer(bytes("startgame", 'utf-8')))
+                    self.decrypt = False
                 if "Sign your pubkey" in data:
                     pemRSA = self.clientPubKeyRSA.public_bytes(
                         encoding=serialization.Encoding.PEM,
@@ -210,7 +148,6 @@ class Client:
                     self.serverSocket.send(self.cipherMsgToServer(sign))
                 else:
                     print(data)
-                #self.decrypt = False
             else:
                 data = self.serverSocket.recv(1024)
                 if not self.is_json(data.decode()):
@@ -250,8 +187,6 @@ class Client:
                         sock, add = self.listener.accept()
                         self.pToConnect[self.sessionsNumber] = sock
                         self.sessionsNumber += 1
-                    if "NEW TABLE" in data.decode('utf-8'):
-                        self.serverSocket.send(bytes("startgame", 'utf-8'))
                     if "HAND" in data.decode('utf-8'):
                         print(self.printHand())
                     if "started the round" in data.decode('utf-8'):
