@@ -112,7 +112,7 @@ class Server:
             while validate == 'Verification failed':
                 # ask for the citizenCard
                 client_socket.send(bytes("CitizenCard Authentication: ", 'utf-8'))
-                print(self.decipherMsgFromClient(client_socket.recv(1024)).decode())
+                print(self.decipherMsgFromClient(client_socket.recv(1024)))
                 pem = self.decipherMsgFromClient(client_socket.recv(1024))
                 clientkey = serialization.load_pem_public_key(pem, backend=default_backend())
 
@@ -658,7 +658,24 @@ class Server:
         self.lobby(client_socket, client_address)
 
     def decipherMsgFromClient(self, msg):
-        return self.serverPrivKey.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
+        maxLenG = 512
+        maxLen = maxLenG
+        minLen = 0
+        plaintext = bytes()
+        if maxLenG >= len(msg):
+            plaintext = self.serverPrivKey.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                                                            hashes.SHA256(), None))
+        else:
+            while minLen < len(msg):
+                ciphertext = msg[minLen:maxLen]
+                minLen = maxLen
+                if maxLen+maxLenG > len(msg):
+                    maxLen += maxLenG
+                else:
+                    maxLen = len(msg)
+                plaintext += self.serverPrivKey.decrypt(ciphertext, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                                                                                   hashes.SHA256(), None))
+        return plaintext
 
     def run(self):
         self.createServerKeys()

@@ -99,43 +99,26 @@ class Client:
             deck = decipherHand
 
     def cipherMsgToServer(self, msg):
-<<<<<<< HEAD
-            # Calculate the maximum amount of data we can encrypt with OAEP + SHA256
-        maxLen = (self.serverPubKey.key_size // 8) - 2 * hashes.SHA256.digest_size - 2
-
-        #while True:
-            # Read for plaintext no more than maxLen bytes from the input file
-        plaintext = msg[:maxLen]
-
-            #if not plaintext:
-            #    break
-
-            # Encrypt the plaintext using OAEP + MGF1(SHA256) + SHA256
-        ciphertext = self.serverPubKey.encrypt(plaintext, padding.OAEP(padding.MGF1(hashes.SHA256()),
-                                                                           hashes.SHA256(), None))
-        return ciphertext
-
-    #def cipherMsgToServer(self, msg):
-    #    return self.serverPubKey.encrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
-=======
         # Calculate the maximum amount of data we can encrypt with OAEP + SHA256
-        maxLen = (self.serverPubKey.key_size // 8) - 2 * hashes.SHA256.digest_size - 2
+        maxLenG = (self.serverPubKey.key_size // 8) - 2 * hashes.SHA256.digest_size - 2
+        maxLen = maxLenG
         minLen = 0
-        ciphertext = None
-        while True:
-            if maxLen <= len(msg):
-                # Read for plaintext no more than maxLen bytes from the input file
+        ciphertext = bytes()
+        if maxLenG >= len(msg):
+            ciphertext = self.serverPubKey.encrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                                                          hashes.SHA256(), None))
+        else:
+            while minLen <= len(msg):
                 plaintext = msg[minLen:maxLen]
-                minLen = maxLen - 1
-                maxLen += maxLen
-            else:
-                break
+                minLen = maxLen
+                if maxLen+maxLenG > len(msg):
+                    maxLen += maxLenG
+                else:
+                    maxLen = len(msg)
+                ciphertext += self.serverPubKey.encrypt(plaintext, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                                                                                   hashes.SHA256(), None))
 
-            # Encrypt the plaintext using OAEP + MGF1(SHA256) + SHA256
-            ciphertext += bytes(self.serverPubKey.encrypt(plaintext, padding.OAEP(padding.MGF1(hashes.SHA256()),
-                                                                           hashes.SHA256(), None)), 'utf-8')
         return ciphertext
->>>>>>> bf3a330093c9cf5ce50edffd3271657a8ba2d41b
 
     def decipherMsgFromServer(self, msg):
         return self.serverPubKey.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
@@ -160,14 +143,15 @@ class Client:
                 if not self.is_json(data.decode()):
                     if data and "acceptNewConnection" not in data.decode('utf-8') and "Graveyard" not in \
                             data.decode('utf-8') and "newlisten" not in data.decode('utf-8') and "playersock" not in \
-                            data.decode('utf-8') and "RandomToSign" not in data.decode('utf-8'):
+                            data.decode('utf-8') and "RandomToSign" not in data.decode('utf-8')\
+                            and "ServerPublicKey" not in data.decode('utf-8'):
                         #if "Do you want to play with" in data.decode('utf-8'):
                             #time.sleep(2)
                         print(str(data, 'utf-8'))
                     if "ServerPublicKey" in data.decode('utf-8'):
                         pem = self.clientSocket.recv(1024)
                         self.serverPubKey = serialization.load_pem_public_key(pem, backend=default_backend())
-                        self.clientSocket.send(self.cipherMsgToServer(bytes("olaaaaaaaaaaaaaolaaaaaaaaaaaaalaaaaaaaaaaalaaaaaaaaaaa",'utf-8')))
+                        self.clientSocket.send(self.cipherMsgToServer(bytes("olaaaaaaa", 'utf-8')))
                     if "newlisten" in data.decode('utf-8'):
                         sock = data.decode('utf-8').replace("newlisten", "").replace("(", "").replace(")", "").replace(
                             "\'", "").split(",")
