@@ -70,19 +70,22 @@ class Server:
                         verifier = True
         return verifier
 
-    def verifyUsernameTaken(self, client_socket):
+    def verifyUsernameTaken(self, client_socket, clientkey):
         validUser = False
         client_username = None
         while not validUser:
             validUser = True
-            client_socket.send(bytes("Username: ", 'utf-8'))
-            client_username = client_socket.recv(1024).decode()
+            client_socket.send(self.cipherMsgToClient(bytes("Username: ", 'utf-8'), clientkey))
+            #client_socket.send(bytes("Username: ", 'utf-8'))
+            client_username = self.decipherMsgFromClient(client_socket.recv(1024)).decode()
+            print("here")
             for value in self.playersConnected.values():
                 if value[0] == client_username:
                     validUser = False
                     break
             if not validUser:
-                client_socket.send(bytes("This Username was already taken", 'utf-8'))
+                client_socket.send(self.cipherMsgToClient(bytes("This Username was already taken",'utf-8'), clientkey))
+                #client_socket.send(bytes("This Username was already taken", 'utf-8'))
         return client_username
 
     def updateLobbyChanges(self, client_socket, client_username, joined):
@@ -123,10 +126,10 @@ class Server:
                 client_socket.send(d)
                 signature = self.decipherMsgFromClient(client_socket.recv(1024))
                 validate = cc_temp.validateSignature(pemRSA, signature)
-                client_socket.send(bytes(validate, 'utf-8'))
+                client_socket.send(self.cipherMsgToClient(bytes(validate, 'utf-8'), clientkeyRSA))
 
             # verify if client_username was already taken
-            client_username = self.verifyUsernameTaken(client_socket)
+            client_username = self.verifyUsernameTaken(client_socket, clientkeyRSA)
 
             connection = (client_socket, client_address)
             # Add to the soloplayers
