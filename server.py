@@ -2,7 +2,7 @@ import socket
 import threading
 import json
 import time
-from citizencard import CitizenCard
+#from citizencard import CitizenCard
 import pickle
 from cryptography.hazmat.primitives.asymmetric import rsa
 from EntityKeyManagement import EntityKeyManagement
@@ -119,13 +119,14 @@ class Server:
                 clientkey = serialization.load_pem_public_key(pem, backend=default_backend())
                 clientkeyRSA = serialization.load_pem_public_key(pemRSA, backend=default_backend())
 
-                cc_temp = CitizenCard()
-                cc_temp.setPubKey(clientkey)
+                #cc_temp = CitizenCard()
+                #cc_temp.setPubKey(clientkey)
                 randomToSign = random.randint(0, 1000)
                 d = self.cipherMsgToClient(bytes("Sign your pubkey", 'utf-8'), clientkeyRSA)
                 client_socket.send(d)
                 signature = self.decipherMsgFromClient(client_socket.recv(1024))
-                validate = cc_temp.validateSignature(pemRSA, signature)
+                #validate = cc_temp.validateSignature(pemRSA, signature)
+                validate = self.validateSignature(clientkey, pemRSA, signature)
                 client_socket.send(self.cipherMsgToClient(bytes(validate, 'utf-8'), clientkeyRSA))
 
             # verify if client_username was already taken
@@ -740,6 +741,12 @@ class Server:
             # stop the server if one of the 4 players gets disconnected
             # break
 
+    def validateSignature(self, clientPubKey, data, signature):
+        try:
+            clientPubKey.verify(signature, data, padding.PKCS1v15(), hashes.SHA1())
+            return 'Verification succeeded'
+        except:
+            return 'Verification failed'
 
     def createServerKeys(self):
         keyManagement = EntityKeyManagement(4096)

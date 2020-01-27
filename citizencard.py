@@ -45,9 +45,9 @@ class CitizenCard:
         signature = bytes(self.session.sign(self.privKey, data, Mechanism(CKM_SHA1_RSA_PKCS)))
         return signature
 
-    def validateSignature(self, data, signature):
-        try:
-            self.pubKey.verify(signature, data, padding.PKCS1v15(), hashes.SHA1())
-            return 'Verification succeeded'
-        except:
-            return 'Verification failed'
+    #def validateSignature(self, data, signature):
+    #    try:
+    #        self.pubKey.verify(signature, data, padding.PKCS1v15(), hashes.SHA1())
+    #        return 'Verification succeeded'
+    #    except:
+    #        return 'Verification failed'
