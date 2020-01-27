@@ -39,7 +39,9 @@ class CitizenCard:
         self.session.closeSession()
 
     def sign(self, dataToBeSigned):
-        data = bytes(dataToBeSigned, 'utf-8')
+        data = dataToBeSigned
+        if isinstance(dataToBeSigned, str) :
+            data = bytes(dataToBeSigned, 'utf-8')
         signature = bytes(self.session.sign(self.privKey, data, Mechanism(CKM_SHA1_RSA_PKCS)))
         return signature
 
