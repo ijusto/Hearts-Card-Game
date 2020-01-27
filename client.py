@@ -9,6 +9,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
+from EntityKeyManagement import EntityKeyManagement
 from cryptography.hazmat.primitives import serialization
 
 class Client:
@@ -17,7 +18,7 @@ class Client:
     clientPubKey = clientPrivKey.public_key()
 
     # ipv4 tcp socket
-    clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     clientDisconnect = False
 
@@ -37,6 +38,8 @@ class Client:
     hand = []
 
     decrypt = False
+    clientPrivKeyRSA = None
+    clientPubKeyRSA = None
 
     graveyard = 0
     totalPoints = 0
@@ -46,7 +49,7 @@ class Client:
             try:
                 if self.flagTurn:
                     sentence = input("")
-                    self.clientSocket.send(bytes(sentence, 'utf-8'))
+                    self.serverSocket.send(bytes(sentence, 'utf-8'))
                     if sentence in self.printHand():
                         card = sentence.split(" ")
                         court_n_ace = ["J", "Q", "K", "A"]
@@ -64,7 +67,7 @@ class Client:
                         self.flagTurn = False
             except:
                 self.clientDisconnect = True
-                self.clientSocket.close()
+                self.serverSocket.close()
 
     def is_json(self, myjson):
         try:
@@ -122,18 +125,37 @@ class Client:
 
         return ciphertext
 
+    def authenticaMsgToServer(self, msg):
+        # Calculate the maximum amount of data we can encrypt with OAEP + SHA256
+        maxLenG = (self.clientPrivKeyRSA.key_size // 8) - 2 * hashes.SHA256.digest_size - 2
+        maxLen = maxLenG
+        minLen = 0
+        ciphertext = bytes()
+        if maxLenG >= len(msg):
+            ciphertext = self.clientPrivKeyRSA.encrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                                                                     hashes.SHA256(), None))
+        else:
+            while minLen <= len(msg):
+                plaintext = msg[minLen:maxLen]
+                minLen = maxLen
+                if maxLen + maxLenG > len(msg):
+                    maxLen += maxLenG
+                else:
+                    maxLen = len(msg)
+                ciphertext += self.clientPrivKeyRSA.encrypt(plaintext, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                                                                     hashes.SHA256(), None))
+
+        return ciphertext
+
+
     def decipherMsgFromServer(self, msg):
-        maxLenG = 256
-        print(msg)
-        print("size:"+str(len(msg)))
+        maxLenG = 512
         maxLen = maxLenG
         minLen = 0
         plaintext = bytes()
         if maxLenG >= len(msg):
-            print("here")
-            plaintext = self.cc.privKey.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()),
+            plaintext = self.clientPrivKeyRSA.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()),
                                                                      hashes.SHA256(), None))
-            print("here2")
         else:
             while minLen < len(msg):
                 ciphertext = msg[minLen:maxLen]
@@ -142,13 +164,15 @@ class Client:
                     maxLen += maxLenG
                 else:
                     maxLen = len(msg)
-                plaintext += self.cc.privKey.decrypt(ciphertext, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                plaintext += self.clientPrivKeyRSA.decrypt(ciphertext, padding.OAEP(padding.MGF1(hashes.SHA256()),
                                                                                  hashes.SHA256(), None))
         return plaintext
 
 
     def __init__(self, address):
-        self.clientSocket.connect((address, 10002))
+        self.createClientKeys()
+
+        self.serverSocket.connect((address, 10002))
 
         # Probabilidade do client escolher, trocar e baralhar
         self.probChoice = random.randint(1, 20)
@@ -164,13 +188,17 @@ class Client:
         while not self.clientDisconnect:
             #try:
             if self.decrypt:
-                data = self.decipherMsgFromServer(self.clientSocket.recv(1024)).decode()
-                if "RandomToSign" in data:
-                    sign = self.cc.sign(data.split(":")[1])
-                    self.clientSocket.send(sign)
+                data = self.decipherMsgFromServer(self.serverSocket.recv(1024)).decode()
+                if "Sign your pubkey" in data:
+                    pemRSA = self.clientPubKeyRSA.public_bytes(
+                        encoding=serialization.Encoding.PEM,
+                        format=serialization.PublicFormat.SubjectPublicKeyInfo
+                    )
+                    sign = self.cc.sign(pemRSA)
+                    self.serverSocket.send(self.cipherMsgToServer(sign))
                 self.decrypt = False
             else:
-                data = self.clientSocket.recv(1024)
+                data = self.serverSocket.recv(1024)
                 if not self.is_json(data.decode()):
                     if data and "acceptNewConnection" not in data.decode('utf-8') and "Graveyard" not in \
                             data.decode('utf-8') and "newlisten" not in data.decode('utf-8') and "playersock" not in \
@@ -180,14 +208,19 @@ class Client:
                             #time.sleep(2)
                         print(str(data, 'utf-8'))
                     if "ServerPublicKey" in data.decode('utf-8'):
-                        pem = self.clientSocket.recv(1024)
+                        pem = self.serverSocket.recv(1024)
                         self.serverPubKey = serialization.load_pem_public_key(pem, backend=default_backend())
                         self.cc = CitizenCard()
-                        pem = self.cc.pubKey.public_bytes(
+                        pemCC = self.cc.pubKey.public_bytes(
                             encoding=serialization.Encoding.PEM,
                             format=serialization.PublicFormat.SubjectPublicKeyInfo
                         )
-                        self.clientSocket.send(self.cipherMsgToServer(pem))
+                        pemRSA = self.clientPubKeyRSA.public_bytes(
+                            encoding=serialization.Encoding.PEM,
+                            format=serialization.PublicFormat.SubjectPublicKeyInfo
+                        )
+                        self.serverSocket.send(self.cipherMsgToServer(pemCC))
+                        self.serverSocket.send(self.cipherMsgToServer(pemRSA))
                         self.decrypt = True
                     if "newlisten" in data.decode('utf-8'):
                         sock = data.decode('utf-8').replace("newlisten", "").replace("(", "").replace(")", "").replace(
@@ -206,13 +239,13 @@ class Client:
                         self.pToConnect[self.sessionsNumber] = sock
                         self.sessionsNumber += 1
                     if "Do you want to play with" in data.decode('utf-8'):
-                        self.clientSocket.send(bytes("ignore", 'utf-8'))
+                        self.serverSocket.send(bytes("ignore", 'utf-8'))
                     if "NEW TABLE" in data.decode('utf-8'):
-                        self.clientSocket.send(bytes("startgame", 'utf-8'))
+                        self.serverSocket.send(bytes("startgame", 'utf-8'))
                     if "HAND" in data.decode('utf-8'):
                         print(self.printHand())
                     if "started the round" in data.decode('utf-8'):
-                        self.clientSocket.send(bytes("alreadyplayed", 'utf-8'))
+                        self.serverSocket.send(bytes("alreadyplayed", 'utf-8'))
                         self.flagTurn = False
                         self.flagTurnStart = True
                     if "Your Turn" in data.decode('utf-8'):
@@ -220,7 +253,7 @@ class Client:
                     if "Graveyard" in data.decode('utf-8'):
                         self.graveyard += int(data.decode('utf-8').split(" ")[1])
                     if "End of the game" in data.decode('utf-8'):
-                        self.clientSocket.send(bytes(str(self.graveyard), 'utf-8'))
+                        self.serverSocket.send(bytes(str(self.graveyard), 'utf-8'))
                         self.hand.clear()
                         self.graveyard = 0
                     if "You scored" in data.decode('utf-8'):
@@ -251,7 +284,7 @@ class Client:
                         deck = data["deckShuffle"]
                         deck = self.shuffle(deck)
                         deckJson = json.dumps({"deckShuffled": deck})
-                        self.clientSocket.send(deckJson.encode())
+                        self.serverSocket.send(deckJson.encode())
                     elif "deckEBT" in data.keys():
                         # Pode escolher e pode trocar e baralha sempre
                         deck = data["deckEBT"]
@@ -288,8 +321,16 @@ class Client:
                         # BARALHAR
                         deck = self.shuffle(deck)
                         deckJson = json.dumps({"deckAfterEBT": deck})
-                        self.clientSocket.send(deckJson.encode())
+                        self.serverSocket.send(deckJson.encode())
             #except Exception as e:
             #    print("Exception: "+str(e))
             #    self.clientDisconnect = True
             #    self.clientSocket.close()
+
+
+
+    def createClientKeys(self):
+        keyManagement = EntityKeyManagement(4096)
+        keyManagement.generateKey()
+        self.clientPrivKeyRSA = keyManagement.getPrivKey()
+        self.clientPubKeyRSA = keyManagement.getPubKey()

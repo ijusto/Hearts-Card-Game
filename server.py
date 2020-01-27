@@ -112,15 +112,17 @@ class Server:
             while validate == 'Verification failed':
                 # ask for the citizenCard
                 pem = self.decipherMsgFromClient(client_socket.recv(1024))
+                pemRSA = self.decipherMsgFromClient(client_socket.recv(1024))
                 clientkey = serialization.load_pem_public_key(pem, backend=default_backend())
+                clientkeyRSA = serialization.load_pem_public_key(pemRSA, backend=default_backend())
+
                 cc_temp = CitizenCard()
                 cc_temp.setPubKey(clientkey)
                 randomToSign = random.randint(0, 1000)
-                d = self.cipherMsgToClient(bytes("RandomToSign:"+str(randomToSign), 'utf-8'), clientkey)
-                print(d)
+                d = self.cipherMsgToClient(bytes("Sign your pubkey", 'utf-8'), clientkeyRSA)
                 client_socket.send(d)
-                signature = client_socket.recv(1024)
-                validate = cc_temp.validateSignature(bytes(str(randomToSign), 'utf-8'), signature)
+                signature = self.decipherMsgFromClient(client_socket.recv(1024))
+                validate = cc_temp.validateSignature(pemRSA, signature)
                 client_socket.send(bytes(validate, 'utf-8'))
 
             # verify if client_username was already taken
@@ -674,6 +676,26 @@ class Server:
                                                                                 hashes.SHA256(), None))
 
         return ciphertext
+
+    def authenticateMsgFromClient(self, msg, clientkey):
+        maxLenG = 512
+        maxLen = maxLenG
+        minLen = 0
+        plaintext = bytes()
+        if maxLenG >= len(msg):
+            plaintext = self.clientkey.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                                                                     hashes.SHA256(), None))
+        else:
+            while minLen < len(msg):
+                ciphertext = msg[minLen:maxLen]
+                minLen = maxLen
+                if maxLen + maxLenG > len(msg):
+                    maxLen += maxLenG
+                else:
+                    maxLen = len(msg)
+                plaintext += self.serverPrivKey.decrypt(ciphertext, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                                                                                 hashes.SHA256(), None))
+        return plaintext
 
     def decipherMsgFromClient(self, msg):
         maxLenG = 512
