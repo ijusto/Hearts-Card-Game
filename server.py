@@ -121,7 +121,7 @@ class Server:
 
                 #cc_temp = CitizenCard()
                 #cc_temp.setPubKey(clientkey)
-                randomToSign = random.randint(0, 1000)
+                #randomToSign = random.randint(0, 1000)
                 d = self.cipherMsgToClient(bytes("Sign your pubkey", 'utf-8'), clientkeyRSA)
                 client_socket.send(d)
                 signature = self.decipherMsgFromClient(client_socket.recv(1024))
