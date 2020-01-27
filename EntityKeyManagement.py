@@ -48,53 +48,59 @@ class EntityKeyManagement:
             f.write(pem_encoding)
             f.close()
 
-    def rsaCiphering(self):
-        # Open input for reading and output file for writing
-        in_file = open(self.clear_text_filename, "rb")
-        out_file = open(self.ciphertext_filename, "wb")
+    def rsaCipheringConfidentially(self, msg, otherEntityPubKey):
+        return self.rsaCiphering(msg, otherEntityPubKey)
 
-        # Load key pair to a PEM file protected by a password
-        with open(self.pem_file, "rb") as kf:
-            priv_key = serialization.load_pem_private_key(kf.read(), bytes(self.pem_pwd, "utf-8"),
-                                                                            default_backend())
-        pub_key = priv_key.public_key()
+    def rsaDecipheringConfidentially(self, msg):
+        return self.rsaDeciphering(msg, self.priv_key)
 
+    def rsaCipheringAuthenticate(self, msg):
+        return self.rsaCiphering(msg, self.priv_key)
+
+    def rsaDecipheringAuthenticate(self, msg, otherEntityPubKey):
+        return self.rsaDeciphering(msg, otherEntityPubKey)
+
+    def rsaCiphering(self, msg, key):
         # Calculate the maximum amount of data we can encrypt with OAEP + SHA256
-        maxLen = (pub_key.key_size // 8) - 2 * hashes.SHA256.digest_size - 2
+        maxLenG = (key.key_size // 8) - 2 * hashes.SHA256.digest_size - 2
+        maxLen = maxLenG
+        minLen = 0
+        ciphertext = bytes()
+        if maxLenG >= len(msg):
+            ciphertext = key.encrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                                                                 hashes.SHA256(), None))
+        else:
+            while minLen <= len(msg):
+                plaintext = msg[minLen:maxLen]
+                minLen = maxLen
+                if maxLen + maxLenG > len(msg):
+                    maxLen += maxLenG
+                else:
+                    maxLen = len(msg)
+                ciphertext += key.encrypt(plaintext, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                                                                            hashes.SHA256(), None))
 
-        while True:
-            # Read for plaintext no more than maxLen bytes from the input file
-            plaintext = in_file.read(maxLen)
+        return ciphertext
 
-            if not plaintext:
-                break
-
-            # Encrypt the plaintext using OAEP + MGF1(SHA256) + SHA256
-            ciphertext = pub_key.encrypt(plaintext,
-                                         padding.OAEP(padding.MGF1(hashes.SHA256()),
-                                                      hashes.SHA256(),
-                                                      None))
-            # Write the chipertext in the output file
-            out_file.write(ciphertext)
-
-        in_file.close()
-        out_file.close()
-
-    def rsaDeciphering(self):
-        # Load key pair to a PEM file protected by a password
-        with open(self.pem_file, "rb") as kf:
-            priv_key = serialization.load_pem_private_key(kf.read(), bytes(self.pem_pwd, "utf-8"),
-                                                                            default_backend())
-        pub_key = priv_key.public_key()
-
-        f = open(self.ciphertext_filename, "rb")
-        ciphertext = f.read()
-
-        plaintext = priv_key.decrypt(ciphertext, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
-
-        f = open(self.clear_text_filename, "wb")
-        f.write(plaintext)
-        f.close()
+    def rsaDeciphering(self, msg, key):
+        maxLenG = 512
+        maxLen = maxLenG
+        minLen = 0
+        plaintext = bytes()
+        if maxLenG >= len(msg):
+            plaintext = key.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                                                                hashes.SHA256(), None))
+        else:
+            while minLen < len(msg):
+                ciphertext = msg[minLen:maxLen]
+                minLen = maxLen
+                if maxLen + maxLenG > len(msg):
+                    maxLen += maxLenG
+                else:
+                    maxLen = len(msg)
+                plaintext += key.decrypt(ciphertext, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                                                                            hashes.SHA256(), None))
+        return plaintext
 
     def set_clear_text_filename(self, clear_text_filename):
         self.clear_text_filename = clear_text_filename

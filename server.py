@@ -687,7 +687,7 @@ class Server:
         minLen = 0
         plaintext = bytes()
         if maxLenG >= len(msg):
-            plaintext = self.clientkey.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()),
+            plaintext = clientkey.decrypt(msg, padding.OAEP(padding.MGF1(hashes.SHA256()),
                                                                      hashes.SHA256(), None))
         else:
             while minLen < len(msg):
@@ -697,7 +697,7 @@ class Server:
                     maxLen += maxLenG
                 else:
                     maxLen = len(msg)
-                plaintext += self.serverPrivKey.decrypt(ciphertext, padding.OAEP(padding.MGF1(hashes.SHA256()),
+                plaintext += clientkey.decrypt(ciphertext, padding.OAEP(padding.MGF1(hashes.SHA256()),
                                                                                  hashes.SHA256(), None))
         return plaintext
 
