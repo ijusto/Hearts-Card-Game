@@ -761,6 +761,6 @@ class Server:
     def createServerKeys(self):
         self.rsaKeyManagement = EntityRSAKeyManagement(4096)
         self.rsaKeyManagement.generateRSAKey()
-        self.serverPrivKey = keyManagement.getRSAPrivKey()
-        self.serverPubKey = keyManagement.getRSAPubKey()
+        self.serverPrivKey = self.rsaKeyManagement.getRSAPrivKey()
+        self.serverPubKey = self.rsaKeyManagement.getRSAPubKey()
 
