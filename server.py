@@ -405,7 +405,7 @@ class Server:
                                         flag = True
 
             time.sleep(0.5)
-
+            '''
             for table_num, lst in self.tables.items():
                 if table_num == numTable:
                     index1 = 0
@@ -444,7 +444,7 @@ class Server:
                                             user_socket.send(bytes("sendingto:" + str(user_name2), 'utf-8'))
                                             time.sleep(0.5)
 
-            '''
+
             # Send to each player the deck. The player will shuffle it and send it back
             for table_num, lst in self.tables.items():
                 if table_num == numTable:

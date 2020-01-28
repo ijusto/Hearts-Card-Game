@@ -179,18 +179,12 @@ class Client:
                     if "playersock" in data.decode('utf-8'):
                         message = data.decode('utf-8').split("---")
                         sock = message[0].replace("playersock", "").replace("(", "").replace(")", "").replace("\'", "").split(",")
-                        self.pToConnect[self.sessionsNumber].connect((sock[0], int(sock[1])))
-                        self.sessionsNumber += 1
                         self.playersInTable.update({message[1]: socket.socket(socket.AF_INET,
                                                                               socket.SOCK_STREAM)})
-                        self.playersInTable[message[1]].connect(
-                            (sock[0], int(sock[1])))
+                        self.playersInTable[message[1]].connect((sock[0], int(sock[1])))
                     if "acceptNewConnection" in data.decode(('utf-8')):
                         message = data.decode('utf-8').replace("acceptNewConnection---", "")
-                        #print(str(self.listener) + "accepting")
                         sock, add = self.listener.accept()
-                        self.pToConnect[self.sessionsNumber] = sock
-                        self.sessionsNumber += 1
                         self.playersInTable.update({message: sock})
                     if "HAND" in data.decode('utf-8'):
                         print(self.printHand())
@@ -209,15 +203,19 @@ class Client:
                     if "You scored" in data.decode('utf-8'):
                         self.totalPoints += int(data.decode('utf-8').split(" ")[2])
                     if "receiving" in data.decode('utf-8'):
-                        i = int(data.decode('utf-8').split(":")[1])
-                        print(self.pToConnect[i].recv(1024).decode())
-                        #user = data.decode('utf-8').split(":")[1]
-                        #print(self.playersInTable[user].recv(1024).decode())
+                        #i = int(data.decode('utf-8').split(":")[1])
+                        #print(self.pToConnect[i].recv(1024).decode())
+                        user = data.decode('utf-8').split(":")[1]
+                        print("User:"+user)
+                        print("Socket: " + str(self.playersInTable[user]))
+                        print(self.playersInTable[user].recv(1024).decode())
                     if "sending" in data.decode('utf-8'):
-                        i = int(data.decode('utf-8').split(":")[1])
-                        self.pToConnect[i].send(bytes("funciona", 'utf-8'))
-                        #user = data.decode('utf-8').split(":")[1]
-                        #self.playersInTable[user].send(bytes("funciona", 'utf-8'))
+                        #i = int(data.decode('utf-8').split(":")[1])
+                        #self.pToConnect[i].send(bytes("funciona", 'utf-8'))
+                        user = data.decode('utf-8').split(":")[1]
+                        print("User2: "+user)
+                        print("Socket2: "+str(self.playersInTable[user]))
+                        self.playersInTable[user].send(bytes("funciona", 'utf-8'))
                     if not data:
                         continue
                 else:
