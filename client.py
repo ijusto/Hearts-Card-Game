@@ -29,7 +29,7 @@ class Client:
     pToConnect = [socket.socket(socket.AF_INET, socket.SOCK_STREAM),
                   socket.socket(socket.AF_INET, socket.SOCK_STREAM),
                   socket.socket(socket.AF_INET, socket.SOCK_STREAM)]
-    playersInTable = []
+    playersInTable = {}
 
     probChoice = 0
     probSwitch = 0
@@ -177,16 +177,21 @@ class Client:
                         self.listener.bind((sock[0], int(sock[1])))
                         self.listener.listen(4)
                     if "playersock" in data.decode('utf-8'):
-                        sock = data.decode('utf-8').replace("playersock", "").replace("(", "").replace(")", "").replace("\'", "").split(",")
-                        #print(str(self.listener)+"connecting too")
-                        #print("add:"+sock[0]+" port:"+sock[1])
+                        message = data.decode('utf-8').split("---")
+                        sock = message[0].replace("playersock", "").replace("(", "").replace(")", "").replace("\'", "").split(",")
                         self.pToConnect[self.sessionsNumber].connect((sock[0], int(sock[1])))
                         self.sessionsNumber += 1
+                        self.playersInTable.update({message[1]: socket.socket(socket.AF_INET,
+                                                                              socket.SOCK_STREAM)})
+                        self.playersInTable[message[1]].connect(
+                            (sock[0], int(sock[1])))
                     if "acceptNewConnection" in data.decode(('utf-8')):
+                        message = data.decode('utf-8').replace("acceptNewConnection---", "")
                         #print(str(self.listener) + "accepting")
                         sock, add = self.listener.accept()
                         self.pToConnect[self.sessionsNumber] = sock
                         self.sessionsNumber += 1
+                        self.playersInTable.update({message: sock})
                     if "HAND" in data.decode('utf-8'):
                         print(self.printHand())
                     if "started the round" in data.decode('utf-8'):
@@ -203,24 +208,16 @@ class Client:
                         self.graveyard = 0
                     if "You scored" in data.decode('utf-8'):
                         self.totalPoints += int(data.decode('utf-8').split(" ")[2])
-                    #if "SHUFFLE" in data.decode('utf-8'):
-                    #    for i in range(0, 3):
-                    #        inputThread = threading.Thread(target=self.msgBetweenPlayers, args=[self.pToConnect[i]])
-                    #        inputThread.daemon = True
-                    #        inputThread.start()
-                        #inputThread = threading.Thread(target=self.msgBetweenPlayers, args=[self.pToConnect[0]])
-                        #inputThread.daemon = True
-                        #inputThread.start()
-                    #if "CARD DISTRIBUTION" in data.decode('utf-8'):
-                    #    for i in range(0, 3):
-                    #        print("here2")
-                    #        self.pToConnect[i].send(bytes("funciona", 'utf-8'))
                     if "receiving" in data.decode('utf-8'):
                         i = int(data.decode('utf-8').split(":")[1])
                         print(self.pToConnect[i].recv(1024).decode())
+                        #user = data.decode('utf-8').split(":")[1]
+                        #print(self.playersInTable[user].recv(1024).decode())
                     if "sending" in data.decode('utf-8'):
                         i = int(data.decode('utf-8').split(":")[1])
                         self.pToConnect[i].send(bytes("funciona", 'utf-8'))
+                        #user = data.decode('utf-8').split(":")[1]
+                        #self.playersInTable[user].send(bytes("funciona", 'utf-8'))
                     if not data:
                         continue
                 else:

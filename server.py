@@ -133,7 +133,6 @@ class Server:
 
             # Sending information to other players about the join
             self.updateLobbyChanges(client_socket, client_username, True)
-            self.updateLobbyChanges(client_socket, client_username, True)
 
         except:
             print("player disconnected")
@@ -327,9 +326,9 @@ class Server:
                                 for user in lst:
                                     for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                         if client_socket != user_socket:
-                                            user_socket.send(
+                                            user_socket.send(self.cipherMsgToClient(
                                                 bytes("\n" + client_username + " leave the party, party was deleted\n",
-                                                      'utf-8'))
+                                                      'utf-8'), user_pubkey))
                                         self.playersConnected.update(
                                             {(user_socket, user_address): (user_name, user_pubkey)})
                                 del self.parties[party_num]
@@ -339,8 +338,8 @@ class Server:
                                 for user in lst:
                                     for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                         if client_socket != user_socket:
-                                            user_socket.send(
-                                                bytes("\n" + client_username + " leave the party", 'utf-8'))
+                                            user_socket.send(self.cipherMsgToClient(
+                                                bytes("\n" + client_username + " leave the party", 'utf-8'), user_pubkey))
                                 lst.remove(dicAux)
                                 self.playersConnected.update(dicAux)
                                 break
@@ -393,15 +392,15 @@ class Server:
                 if table_num == numTable:
                     for user in lst:
                         flag = False
-                        for (user_socket, user_address) in user.keys():
+                        for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                             for user2 in lst:
-                                for (user_socket2, user_address2) in user2.keys():
+                                for (user_socket2, user_address2), (user_name2, user_pubkey2) in user2.items():
                                     if user_socket != user_socket2:
                                         if flag:
                                             time.sleep(0.2)
-                                            user_socket.send(bytes(str("playersock"+str(user_address2)).encode()))
+                                            user_socket.send(bytes(str("playersock"+str(user_address2)+"---"+user_name2).encode()))
                                             time.sleep(0.4)
-                                            user_socket2.send(bytes("acceptNewConnection", 'utf-8'))
+                                            user_socket2.send(bytes("acceptNewConnection"+"---"+user_name, 'utf-8'))
                                     else:
                                         flag = True
 
@@ -425,14 +424,27 @@ class Server:
                                             time.sleep(0.2)
                                         else:
                                             user_socket2.send(bytes("receiving:" + str(index1-1), 'utf-8'))
-                                            time.sleep(0.2)
+                                            time.sleep(0.5)
                                             user_socket.send(bytes("sending:" + str(index2), 'utf-8'))
                                             index2 += 1
-                                            time.sleep(0.2)
+                                            time.sleep(0.5)
                                     else:
                                         flag = True
                         index1 += 1
+            '''
+            for table_num, lst in self.tables.items():
+                if table_num == numTable:
+                    for user in lst:
+                        for (user_socket, user_address), (user_name, user_pubkey) in user.items():
+                            for user2 in lst:
+                                for (user_socket2, user_address2), (user_name2, user_pubkey2) in user2.items():
+                                    if user_socket != user_socket2:
+                                            user_socket2.send(bytes("receivingfrom:" + str(user_name), 'utf-8'))
+                                            time.sleep(0.5)
+                                            user_socket.send(bytes("sendingto:" + str(user_name2), 'utf-8'))
+                                            time.sleep(0.5)
 
+            '''
             # Send to each player the deck. The player will shuffle it and send it back
             for table_num, lst in self.tables.items():
                 if table_num == numTable:
