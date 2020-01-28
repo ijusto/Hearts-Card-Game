@@ -9,44 +9,19 @@ class EntityRSAKeyManagement:
 
     def __init__(self, key_size):
         self.key_size = key_size # 4096
-        self.pem_pwd = None # "ola"
-        self.pem_file = None
-        self.clear_text_filename = None # "contentToCipher.txt"
-        self.ciphertext_filename = None # "cipheredContent.txt"
         self.priv_key = None
         self.pub_key = None
 
     def getRSAPrivKey(self):
-        priv_key = self.priv_key
-        if self.pem_file:
-            # Load key pair to a PEM file protected by a password
-            with open(self.pem_file, "rb") as kf:
-                priv_key = serialization.load_pem_private_key(kf.read(), bytes(self.pem_pwd, "utf-8"),
-                                                              default_backend())
-        return priv_key
+        return self.priv_key
 
     def getRSAPubKey(self):
         priv_key = self.getRSAPrivKey()
-        pubKey = None
-        if priv_key:
-            pubKey = priv_key.public_key()
-        return pubKey
+        return priv_key.public_key()
 
     def generateRSAKey(self):
-        if self.pem_file:
-            f = open(self.pem_file, "wb")
         # Use 65537 (2^16 + 1) as public exponent
         self.priv_key = rsa.generate_private_key(65537, self.key_size, default_backend())
-
-        if self.pem_file:
-            # Save the key pair to a PEM file protected by the password saved in variable pwd
-            pem_encoding = self.priv_key.private_bytes(serialization.Encoding.PEM,
-                                                  serialization.PrivateFormat.PKCS8,
-                                                  serialization.BestAvailableEncryption(bytes(self.pem_pwd, "utf-8")))
-
-            # Save the contents of pem_encoding in a file
-            f.write(pem_encoding)
-            f.close()
 
     def rsaCipheringConfidentially(self, msg, otherEntityPubKey):
         return self.rsaCiphering(msg, otherEntityPubKey)
@@ -110,17 +85,5 @@ class EntityRSAKeyManagement:
                                                                padding.PSS.MAX_LENGTH), hashes.SHA256())
         return signature
 
-    def set_clear_text_filename(self, clear_text_filename):
-        self.clear_text_filename = clear_text_filename
-
-    def set_ciphertext_filename(self, ciphertext_filename):
-        self.ciphertext_filename = ciphertext_filename
-
     def set_key_size(self, key_size):
         self.key_size = key_size
-
-    def set_pem_pwd(self, pem_pwd):
-        self.pem_pwd = pem_pwd
-
-    def set_pem_file(self, clientID):
-        self.pem_file = clientID + ".txt"

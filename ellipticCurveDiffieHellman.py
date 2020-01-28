@@ -46,7 +46,7 @@ class EllipticCurveDiffieHellman:
         # Generate a private key for use in the exchange.
         self.exchange_private_key = ec.generate_private_key(ec.SECP384R1(), default_backend())
         self.exchange_public_key = self.exchange_private_key.public_key()
-        self.serialized_public = self.public_key.public_bytes(encoding=serialization.Encoding.PEM,
+        self.serialized_public = self.exchange_public_key.public_bytes(encoding=serialization.Encoding.PEM,
                                                               format=serialization.PublicFormat.SubjectPublicKeyInfo)
 
         loaded_public_key = serialization.load_pem_public_key(self.serialized_public, backend = default_backend())
@@ -82,21 +82,23 @@ class EllipticCurveDiffieHellman:
                 else:
                     ciphertext = encryptor.update(padder.update(plaintext))
 
-        return ciphertext
+        return iv + ciphertext + encryptor.finalize()
 
     def decipherUsingSharedKey(self, shared_key, msg):
         # Setup cipher: AES in CBC mode, w/ a random IV and PKCS #7 padding (similar to PKCS #5)
-        iv = os.urandom(algorithms.AES.block_size // 8)
+        iv = msg[:algorithms.AES.block_size // 8]
+        msg = msg[algorithms.AES.block_size // 8:]
         cipher = Cipher(algorithms.AES(shared_key), modes.CBC(iv), default_backend())
         decryptor = cipher.decryptor()
-        padder = padding.PKCS7(algorithms.AES.block_size).padder()
+        unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
 
         maxLenG = algorithms.AES.block_size
         maxLen = maxLenG
         minLen = 0
         plaintext = bytes()
+
         if maxLenG >= len(msg):
-            plaintext = decryptor.update(padder.update(msg) + padder.finalize())
+            plaintext = unpadder.update(decryptor.update(msg) + decryptor.finalize()) + unpadder.finalize()
         else:
             finalize = False
             # Cycle to repeat while there is data left on the input data
@@ -111,8 +113,8 @@ class EllipticCurveDiffieHellman:
                     maxLen = len(msg)
                     finalize = True
                 if finalize:
-                    plaintext = decryptor.update(padder.update(ciphertext) + padder.finalize())
+                    plaintext = unpadder.update(decryptor.update(msg)) + decryptor.finalize() + unpadder.finalize()
                 else:
-                    plaintext = decryptor.update(padder.update(ciphertext))
+                    plaintext = unpadder.update(decryptor.update(msg))
 
         return plaintext
