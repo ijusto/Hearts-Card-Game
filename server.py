@@ -29,6 +29,7 @@ class Server:
     # players em parties
     numberOfParties = 0
     parties = {}
+    clientsAgreeTable = {}
     tables = {}
     decks = {}
 
@@ -282,13 +283,14 @@ class Server:
                             client_socket.send(self.cipherMsgToClient(
                                 bytes("\nThat players doesn't exist\n", 'utf-8'), clientkeyRSA))
                     # VERIFICAR SE PARTY = 4
-                    if invitation != "ignore":
-                        party44 = False
-                        agreement = True
-                        for party_num, lst in self.parties.items():
-                            if len(lst) == 4:
-                                for user in lst:
-                                    for (user_socket, user_address), (user_name, user_pubkey) in user.items():
+                    #if invitation != "ignore":
+                    party44 = False
+                    agreement = True
+                    for party_num, lst in self.parties.items():
+                        if len(lst) == 4:
+                            for user in lst:
+                                for (user_socket, user_address), (user_name, user_pubkey) in user.items():
+                                    if user_pubkey not in self.clientsAgreeTable.keys():
                                         party44 = True
                                         randomSign = random.randint(0, 1000)
                                         resp = ""
@@ -313,9 +315,18 @@ class Server:
                                             else:
                                                 agreement = False
                                                 break
-                            if party44:
-                                break
-                        if agreement:
+                                        self.clientsAgreeTable[user_pubkey] = agreement
+                        #if party44:
+                            #break
+                    new_table = None
+                    #if agreement:
+                    create = False
+                    if len(self.clientsAgreeTable.keys()) == 4:
+                        create = True
+                        for k, v in self.clientsAgreeTable.items():
+                            if not v:
+                                create = False
+                        if create:
                             for party_num, lst in self.parties.items():
                                 if len(lst) == 4:
                                     for user in lst:
@@ -323,6 +334,8 @@ class Server:
                                             if user_socket != client_socket:
                                                 user_socket.send(self.cipherMsgToClient(
                                                     bytes("\nCREATING NEW TABLE\n", 'utf-8'), user_pubkey))
+                                                new_table = party_num
+                            party44 = True
                         else:
                             for party_num, lst in self.parties.items():
                                 if dicAux in lst:
@@ -346,25 +359,25 @@ class Server:
                                             for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                                 self.sendLobbyMenu(user_socket, user_name, user_pubkey)
                             party44 = False
-                        if party44:
-                            client_socket.send(self.cipherMsgToClient(
-                                bytes("\nCREATING NEW TABLE\n", 'utf-8'), clientkeyRSA))
-                            invitationFlag = True
-                            self.tables.update({party_num: self.parties[party_num]})
-                            # the program is able to exit regardless of if there's any threads still running
+                    if party44:
+                        client_socket.send(self.cipherMsgToClient(
+                            bytes("\nCREATING NEW TABLE\n", 'utf-8'), clientkeyRSA))
+                        invitationFlag = True
+                        self.tables.update({new_table: self.parties[new_table]})
+                        # the program is able to exit regardless of if there's any threads still running
 
-                            diamonds = 'diamonds'
-                            spades = 'spades'
-                            hearts = 'hearts'
-                            clubs = 'clubs'
-                            self.decks.update({party_num: [(i, diamonds) for i in range(2, 15)]
-                                                          + [(i, spades) for i in range(2, 15)]
-                                                          + [(i, hearts) for i in range(2, 15)]
-                                                          + [(i, clubs) for i in range(2, 15)]})
-                            connectionThread = threading.Thread(target=self.gameStart, args=[party_num])
-                            connectionThread.daemon = True
-                            connectionThread.start()
-                            del self.parties[party_num]
+                        diamonds = 'diamonds'
+                        spades = 'spades'
+                        hearts = 'hearts'
+                        clubs = 'clubs'
+                        self.decks.update({new_table: [(i, diamonds) for i in range(2, 15)]
+                                                      + [(i, spades) for i in range(2, 15)]
+                                                      + [(i, hearts) for i in range(2, 15)]
+                                                      + [(i, clubs) for i in range(2, 15)]})
+                        connectionThread = threading.Thread(target=self.gameStart, args=[new_table])
+                        connectionThread.daemon = True
+                        connectionThread.start()
+                        del self.parties[new_table]
             except:
                 # Remover player do lobby
                 print("player disconnected")
