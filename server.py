@@ -283,39 +283,48 @@ class Server:
                             client_socket.send(self.cipherMsgToClient(
                                 bytes("\nThat players doesn't exist\n", 'utf-8'), clientkeyRSA))
                     # VERIFICAR SE PARTY = 4
-                    #if invitation != "ignore":
                     party44 = False
+                    #if invitation != "ignore":
                     agreement = True
                     for party_num, lst in self.parties.items():
                         if len(lst) == 4:
-                            for user in lst:
-                                for (user_socket, user_address), (user_name, user_pubkey) in user.items():
-                                    if user_pubkey not in self.clientsAgreeTable.keys():
-                                        party44 = True
-                                        randomSign = random.randint(0, 1000)
-                                        resp = ""
-                                        while resp != "y" and resp != "n":
-                                            if resp != "ignore":
-                                                user_socket.send(self.cipherMsgToClient(
-                                                    bytes("\nDo you agree to play with this party?[Y/N]", 'utf-8'
-                                                          ), user_pubkey))
-                                            resp = self.decipherMsgFromClient(client_socket.recv(1024)).decode()
-                                            print(resp)
-                                            if resp == "y":
-                                                user_socket.send(self.cipherMsgToClient(bytes(
-                                                    "Sign this challenge:", 'utf-8'), user_pubkey))
-                                                user_socket.send(self.cipherMsgToClient(bytes(str(randomSign), 'utf-8'), user_pubkey))
-                                                signature = self.decipherMsgFromClient(client_socket.recv(1024))
-                                                validation = self.validateSignatureRSA(user_pubkey, str(randomSign),
-                                                                                       signature)
-                                                print(validation)
-                                                if validation == "Verification failed":
-                                                    agreement = False
-                                                break
-                                            else:
-                                                agreement = False
-                                                break
-                                        self.clientsAgreeTable[user_pubkey] = agreement
+                            #for user in lst:
+                            #    for (user_socket, user_address), (user_name, user_pubkey) in user.items():
+                            #        print(self.clientsAgreeTable)
+                            #        if user_name == client_username:
+                            if client_username not in self.clientsAgreeTable.keys():
+                                randomSign = random.randint(0, 1000)
+                                resp = ""
+                                while resp != "y" and resp != "n":
+                                    agreement = True
+                                    if resp != "ignore":
+                                        print("Ignore:"+ client_username)
+                                        client_socket.send(self.cipherMsgToClient(
+                                            bytes("\nDo you agree to play with this party?[Y/N]", 'utf-8'
+                                                  ), clientkeyRSA))
+                                    resp = self.decipherMsgFromClient(client_socket.recv(1024)).decode()
+                                    print(resp)
+                                    if resp == "y":
+                                        print("hereSign:")
+                                        client_socket.send(self.cipherMsgToClient(bytes(
+                                            "Sign this challenge:", 'utf-8'), clientkeyRSA))
+                                        client_socket.send(self.cipherMsgToClient(bytes(str(randomSign), 'utf-8'), clientkeyRSA))
+                                        signature = self.decipherMsgFromClient(client_socket.recv(1024))
+                                        validation = self.validateSignatureRSA(clientkeyRSA, str(randomSign),
+                                                                               signature)
+                                        print(validation)
+                                        if validation == "Verification failed":
+                                            agreement = False
+                                        break
+                                    else:
+                                        agreement = False
+                                self.clientsAgreeTable[client_username] = agreement
+                                if len(self.clientsAgreeTable.keys()) == 1:
+                                    for user in lst:
+                                        for (user_socket, user_address), (user_name, user_pubkey) in user.items():
+                                            if user_name != client_username:
+                                                user_socket.send(self.cipherMsgToClient(bytes("ignora", 'utf-8'), user_pubkey))
+
                         #if party44:
                             #break
                     new_table = None

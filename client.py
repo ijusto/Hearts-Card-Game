@@ -152,6 +152,8 @@ class Client:
                     )
                     sign = self.cc.sign(pemRSA)
                     self.serverSocket.send(self.cipherMsgToServer(sign))
+                elif "ignora" in data:
+                    self.serverSocket.send(self.cipherMsgToServer(bytes("ignore", 'utf-8')))
                 else:
                     print(data)
             else:
