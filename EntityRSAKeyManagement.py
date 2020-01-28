@@ -106,8 +106,8 @@ class EntityRSAKeyManagement:
         data = dataToBeSigned
         if isinstance(dataToBeSigned, str):
             data = bytes(dataToBeSigned, 'utf-8')
-        signature = bytes(self.priv_key.sign(data, padding.PSS(mgf=padding.MGF1(hashes.SHA256()),
-                                                               salt_length=padding.PSS.MAX_LENGTH), hashes.SHA256()))
+        signature = self.priv_key.sign(data, padding.PSS(padding.MGF1(hashes.SHA256()),
+                                                               padding.PSS.MAX_LENGTH), hashes.SHA256())
         return signature
 
     def set_clear_text_filename(self, clear_text_filename):
