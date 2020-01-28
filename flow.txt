@@ -1,0 +1,29 @@
+
+mesa tem baralho completo ("limpo")
+mesa ->	j1 baralha e cifra -> mesa
+mesa ->	j2 baralha e cifra -> mesa
+mesa ->	j3 baralha e cifra -> mesa
+mesa ->	j4 baralha e cifra -> mesa
+	( ^ cifras simetricas aleatorias)
+
+loop
+	j1 tira uma carta (e introduz uma carta "vazia")	(~50%)
+		OU nao faz nada (baralha)
+		OU troca uma carta sua por uma do baralho
+	j2 tira uma carta (e introduz uma carta "vazia")	(~10%)
+		OU nao faz nada (baralha)
+		OU troca uma carta sua por uma do baralho
+	j3 tira uma carta (e introduz uma carta "vazia")
+		OU nao faz nada (baralha)
+		OU troca uma carta sua por uma do baralho
+	j4 tira uma carta (e introduz uma carta "vazia")
+		OU nao faz nada (baralha)
+		OU troca uma carta sua por uma do baralho
+(até o baralho estar todo distribuido)
+	(pode introduzir se uma prob de avisar ou nao que o baralho esta todo distribuido)
+
+jogadores revelam as suas cifras (e a ordem de cifra)
+
+
+---
+cada jogador regista se no croupier e define logo o seu valor publico de DH
