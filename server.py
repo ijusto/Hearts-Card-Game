@@ -236,8 +236,7 @@ class Server:
                                         # Se a party for de tamanho 2
                                         if len(lst) == 2:
                                             for user in lst:
-                                                for (user_socket, user_address), (
-                                                user_name, user_pubkey) in user.items():
+                                                for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                                     if client_socket != user_socket:
                                                         # Enviar informaçao para o outro membro da party
                                                         user_socket.send(self.cipherMsgToClient(bytes(
@@ -250,35 +249,6 @@ class Server:
                                                 bytes("You left the party", 'utf-8'), clientkeyRSA))
                                             # Delete party
                                             del self.parties[party_num]
-                                            break
-                                        else:
-                                            for user in lst:
-                                                for (user_socket, user_address), (
-                                                user_name, user_pubkey) in user.items():
-                                                    if client_socket != user_socket:
-                                                        # Enviar informaçao que um membro saiu da party
-                                                        user_socket.send(self.cipherMsgToClient(
-                                                            bytes("\n" + client_username + " leave the party", 'utf-8'),
-                                                            user_pubkey))
-                                            # Remover player da party
-                                            lst.remove(dicAux)
-                                            client_socket.send(
-                                                self.cipherMsgToClient(bytes("You left the party", 'utf-8'),
-                                                                       clientkeyRSA))
-                                            # Adicionar player à party
-                                            self.playersConnected.update(dicAux)
-                                            break
-                                # Atualiza lobby do players
-                                for (user_socket2, user_address2), (
-                                        user_name2, user_pubkey2) in self.playersConnected.items():
-                                    if user_socket2 != client_socket:
-                                        self.sendLobbyMenu(user_socket2, user_name2, user_pubkey2)
-                                    for party_num, lst in self.parties.items():
-                                        for user in lst:
-                                            for (user_socket2, user_address2), (
-                                            user_name2, user_pubkey2) in user.items():
-                                                if user_socket2 != client_socket:
-                                                    self.sendLobbyMenu(user_socket2, user_name2, user_pubkey2)
                                             break
                                         else:
                                             for user in lst:
@@ -312,82 +282,89 @@ class Server:
                             client_socket.send(self.cipherMsgToClient(
                                 bytes("\nThat players doesn't exist\n", 'utf-8'), clientkeyRSA))
                     # VERIFICAR SE PARTY = 4
-                    party44 = False
-                    aggrement = True
-                    for party_num, lst in self.parties.items():
-                        if len(lst) == 4:
-                            for user in lst:
-                                for (user_socket, user_address), (user_name, user_pubkey) in user.items():
-                                    if user_socket == client_socket:
-                                        party44 = True
-                                    else:
-                                        randomSign = random.randint(0, 1000)
-                                        user_socket.send(self.cipherMsgToClient(
-                                            bytes("\nDo you agree to play with this party?[Y/N]"), 'utf-8'
-                                        ))
-                                        resp = self.decipherMsgFromClient(client_socket.recv(1024)).decode()
-                                        while resp != "y" or resp != "n":
-                                            if resp == "y":
-                                                user_socket.send(self.cipherMsgToClient(bytes(
-                                                    "Sign this challenge:"+str(randomSign)
-                                                ), 'utf-8'))
-                                                signature = self.decipherMsgFromClient(client_socket.recv(1024)).decode()
-                                                validation = self.validateSignatureRSA(user_pubkey, str(randomSign), signature)
-                                                if validation == "Verification failed":
-                                                    agreement = False
-                        if party44:
-                            break
-                    if agreement:
+                    if invitation != "ignore":
+                        party44 = False
+                        agreement = True
                         for party_num, lst in self.parties.items():
                             if len(lst) == 4:
                                 for user in lst:
                                     for (user_socket, user_address), (user_name, user_pubkey) in user.items():
-                                        if user_socket != client_socket:
-                                            user_socket.send(self.cipherMsgToClient(
-                                                bytes("\nCREATING NEW TABLE\n", 'utf-8'), user_pubkey))
-                    else:
-                        for party_num, lst in self.parties.items():
-                            if dicAux in lst:
-                                for user in lst:
-                                    for (user_socket, user_address), (
-                                            user_name, user_pubkey) in user.items():
-                                        user_socket.send(self.cipherMsgToClient(bytes(
-                                            "\nThe party was deleted because of the agreement issues\n",
-                                            'utf-8'), user_pubkey))
-                                        # Adicionar players da party aos soloplayer
-                                        self.playersConnected.update(
-                                            {(user_socket, user_address): (user_name, user_pubkey)})
-                                # Delete party
-                                del self.parties[party_num]
-                                # Atualiza lobby do players
-                                for (user_socket, user_address), (
-                                user_name, user_pubkey) in self.playersConnected.items():
-                                    self.sendLobbyMenu(user_socket, user_name, user_pubkey)
-                                for party_num, lst in self.parties.items():
+                                        party44 = True
+                                        randomSign = random.randint(0, 1000)
+                                        resp = ""
+                                        while resp != "y" and resp != "n":
+                                            if resp != "ignore":
+                                                user_socket.send(self.cipherMsgToClient(
+                                                    bytes("\nDo you agree to play with this party?[Y/N]", 'utf-8'
+                                                          ), user_pubkey))
+                                            resp = self.decipherMsgFromClient(client_socket.recv(1024)).decode()
+                                            print(resp)
+                                            if resp == "y":
+                                                user_socket.send(self.cipherMsgToClient(bytes(
+                                                    "Sign this challenge:", 'utf-8'), user_pubkey))
+                                                user_socket.send(self.cipherMsgToClient(bytes(str(randomSign), 'utf-8'), user_pubkey))
+                                                signature = self.decipherMsgFromClient(client_socket.recv(1024))
+                                                validation = self.validateSignatureRSA(user_pubkey, str(randomSign),
+                                                                                       signature)
+                                                print(validation)
+                                                if validation == "Verification failed":
+                                                    agreement = False
+                                                break
+                                            else:
+                                                agreement = False
+                                                break
+                            if party44:
+                                break
+                        if agreement:
+                            for party_num, lst in self.parties.items():
+                                if len(lst) == 4:
                                     for user in lst:
                                         for (user_socket, user_address), (user_name, user_pubkey) in user.items():
-                                            self.sendLobbyMenu(user_socket, user_name, user_pubkey)
-                        party44 = False
+                                            if user_socket != client_socket:
+                                                user_socket.send(self.cipherMsgToClient(
+                                                    bytes("\nCREATING NEW TABLE\n", 'utf-8'), user_pubkey))
+                        else:
+                            for party_num, lst in self.parties.items():
+                                if dicAux in lst:
+                                    for user in lst:
+                                        for (user_socket, user_address), (
+                                                user_name, user_pubkey) in user.items():
+                                            user_socket.send(self.cipherMsgToClient(bytes(
+                                                "\nThe party was deleted because of the agreement issues\n",
+                                                'utf-8'), user_pubkey))
+                                            # Adicionar players da party aos soloplayer
+                                            self.playersConnected.update(
+                                                {(user_socket, user_address): (user_name, user_pubkey)})
+                                    # Delete party
+                                    del self.parties[party_num]
+                                    # Atualiza lobby do players
+                                    for (user_socket, user_address), (
+                                            user_name, user_pubkey) in self.playersConnected.items():
+                                        self.sendLobbyMenu(user_socket, user_name, user_pubkey)
+                                    for party_num, lst in self.parties.items():
+                                        for user in lst:
+                                            for (user_socket, user_address), (user_name, user_pubkey) in user.items():
+                                                self.sendLobbyMenu(user_socket, user_name, user_pubkey)
+                            party44 = False
+                        if party44:
+                            client_socket.send(self.cipherMsgToClient(
+                                bytes("\nCREATING NEW TABLE\n", 'utf-8'), clientkeyRSA))
+                            invitationFlag = True
+                            self.tables.update({party_num: self.parties[party_num]})
+                            # the program is able to exit regardless of if there's any threads still running
 
-                    if party44:
-                        client_socket.send(self.cipherMsgToClient(
-                            bytes("\nCREATING NEW TABLE\n", 'utf-8'), clientkeyRSA))
-                        invitationFlag = True
-                        self.tables.update({party_num: self.parties[party_num]})
-                        # the program is able to exit regardless of if there's any threads still running
-
-                        diamonds = 'diamonds'
-                        spades = 'spades'
-                        hearts = 'hearts'
-                        clubs = 'clubs'
-                        self.decks.update({party_num: [(i, diamonds) for i in range(2, 15)]
-                                                      + [(i, spades) for i in range(2, 15)]
-                                                      + [(i, hearts) for i in range(2, 15)]
-                                                      + [(i, clubs) for i in range(2, 15)]})
-                        connectionThread = threading.Thread(target=self.gameStart, args=[party_num])
-                        connectionThread.daemon = True
-                        connectionThread.start()
-                        del self.parties[party_num]
+                            diamonds = 'diamonds'
+                            spades = 'spades'
+                            hearts = 'hearts'
+                            clubs = 'clubs'
+                            self.decks.update({party_num: [(i, diamonds) for i in range(2, 15)]
+                                                          + [(i, spades) for i in range(2, 15)]
+                                                          + [(i, hearts) for i in range(2, 15)]
+                                                          + [(i, clubs) for i in range(2, 15)]})
+                            connectionThread = threading.Thread(target=self.gameStart, args=[party_num])
+                            connectionThread.daemon = True
+                            connectionThread.start()
+                            del self.parties[party_num]
             except:
                 # Remover player do lobby
                 print("player disconnected")
@@ -777,18 +754,20 @@ class Server:
             # stop the server if one of the 4 players gets disconnected
             # break
 
-    def validateSignature(self, clientPubKey, data, signature):
-        try:
-            clientPubKey.verify(signature, data, padding.PKCS1v15(), hashes.SHA1())
-            return 'Verification succeeded'
-        except:
-            return 'Verification failed'
-
     def validateSignatureRSA(self, clientPubKey, data, signature):
+        if isinstance(data, str):
+            data = bytes(data, 'utf-8')
         try:
             clientPubKey.verify(signature, data, padding.PSS(mgf=padding.MGF1(hashes.SHA256()),
                                                              salt_length=padding.PSS.MAX_LENGTH),
                                 hashes.SHA256())
+            return 'Verification succeeded'
+        except:
+            return 'Verification failed'
+
+    def validateSignature(self, clientPubKey, data, signature):
+        try:
+            clientPubKey.verify(signature, data, padding.PKCS1v15(), hashes.SHA1())
             return 'Verification succeeded'
         except:
             return 'Verification failed'

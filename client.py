@@ -133,19 +133,18 @@ class Client:
         while not self.clientDisconnect:
             #try:
             if self.decrypt:
-                d = self.serverSocket.recv(1024)
-                print("size"+str(len(d)))
-                data = self.decipherMsgFromServer(d).decode()
+                data = self.decipherMsgFromServer(self.serverSocket.recv(1024)).decode()
                 if "Do you want to play with" in data:
                     self.serverSocket.send(self.cipherMsgToServer(bytes("ignore", 'utf-8')))
+                if "Sign this challenge:" in data:
+                    randomSign = self.decipherMsgFromServer(self.serverSocket.recv(1024)).decode()
+                    signature = self.rsaKeyManagement.sign(randomSign)
+                    self.serverSocket.send(self.cipherMsgToServer(signature))
                 if "Do you agree to play with this party?" in data:
-                    randomSign = data.split("]")
                     self.serverSocket.send(self.cipherMsgToServer(bytes("ignore", 'utf-8')))
-                    accsignature = self.rsaKeyManagement.sign(randomSign)
-                    self.ser
                 if "CREATING NEW TABLE" in data:
-                     self.serverSocket.send(self.cipherMsgToServer(bytes("startgame", 'utf-8')))
-                     self.decrypt = False
+                    self.serverSocket.send(self.cipherMsgToServer(bytes("startgame", 'utf-8')))
+                    self.decrypt = False
                 if "Sign your pubkey" in data:
                     pemRSA = self.clientPubKeyRSA.public_bytes(
                         encoding=serialization.Encoding.PEM,
