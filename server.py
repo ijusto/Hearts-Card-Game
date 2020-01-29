@@ -1,3 +1,4 @@
+import base64
 import socket
 import sys
 import threading
@@ -873,3 +874,17 @@ class Server:
         self.rsaKeyManagement.generateRSAKey()
         self.serverPrivKey = self.rsaKeyManagement.getRSAPrivKey()
         self.serverPubKey = self.rsaKeyManagement.getRSAPubKey()
+
+    def base64DecodeReceivedDeck(self, deck):
+        cipherDeckEncoded = []
+        for card in deck:
+            cipherDeckEncoded += [base64.decodebytes(card[0].encode('ascii')),
+                                  base64.decodebytes(card[1].encode('ascii'))]
+        return cipherDeckEncoded
+
+    def base64EncodeCipherDeck(self, cipherDeck):
+        cipherDeckEncoded = []
+        for card in cipherDeck:
+            cipherDeckEncoded += [base64.encodebytes(card[0]).decode('ascii'),
+                                  base64.encodebytes(card[1]).decode('ascii')]
+        return cipherDeckEncoded

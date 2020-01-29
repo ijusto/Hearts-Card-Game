@@ -106,6 +106,7 @@ class Client:
                 h.append(str(court_n_ace[card[0] - 11]) + " " + card[1])
         return h
 
+
     def cipherDeck(self, deck):
         if self.username == self.playerOrder[0]:
             cipherDeck = []
@@ -115,12 +116,24 @@ class Client:
         else:
             cipherDeck = []
             for card in deck:
-                cipherDeck += [
-                    self.ecdh.cipherUsingSharedKey(self.secretKeyDeck, str(card[0])),
-
-                                    self.ecdh.cipherUsingSharedKey(self.secretKeyDeck, str((card[1])))]
+                cipherDeck += [self.ecdh.cipherUsingSharedKey(self.secretKeyDeck, str(card[0])),
+                               self.ecdh.cipherUsingSharedKey(self.secretKeyDeck, str((card[1])))]
 
         return cipherDeck
+
+    def base64DecodeReceivedDeck(self, deck):
+        cipherDeckEncoded = []
+        for card in deck:
+            cipherDeckEncoded += [base64.decodebytes(card[0].encode('ascii')),
+                                  base64.decodebytes(card[1].encode('ascii'))]
+        return cipherDeckEncoded
+
+    def base64EncodeCipherDeck(self, cipherDeck):
+        cipherDeckEncoded = []
+        for card in cipherDeck:
+            cipherDeckEncoded += [base64.encodebytes(card[0]).decode('ascii'),
+                                  base64.encodebytes(card[1]).decode('ascii')]
+        return cipherDeckEncoded
 
     def decipherDeck(self, deck):
         decipherHand = []
