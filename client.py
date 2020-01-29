@@ -164,7 +164,8 @@ class Client:
         self.serverSocket.connect((address, 10002))
 
         # Probabilidade do client escolher, trocar e baralhar
-        self.probChoice = random.randint(1, 90)
+        self.probChoice = random.randint(70, 90)
+        #self.probChoice = random.randint(1, 5)
         self.probSwitch = random.randint(1, 50)
 
         self.flagTurn = True
@@ -196,6 +197,19 @@ class Client:
                         #deck = self.cipherDeck(deck)
                         deckJson = json.dumps({"deckShuffled": deck})
                         self.serverSocket.send(deckJson.encode())
+                    self.decrypt = False
+                if "Your Turn" in data:
+                    self.flagTurn = True
+                if "started the round" in data:
+                    self.serverSocket.send(self.cipherMsgToServer(bytes("alreadyplayed", 'utf-8')))
+                    self.flagTurn = False
+                    self.flagTurnStart = True
+                if "won the round" in data:
+                    self.decrypt = False
+                if "End of the game" in data:
+                    self.serverSocket.send(self.cipherMsgToServer(bytes(str(self.graveyard), 'utf-8')))
+                    self.hand.clear()
+                    self.graveyard = 0
                     self.decrypt = False
                 if "Sign your pubkey" in data:
                     pemRSA = self.clientPubKeyRSA.public_bytes(
@@ -259,22 +273,19 @@ class Client:
                     signature = self.cc.sign(pemEC)
                     self.playersInTable[user][0].send(signature)
                 elif "OTeuUsername" in data:
-                    print("here")
                     self.username = data.split(":")[1]
                 elif "OrdemDosPlayers" in data:
-                    print(data)
                     self.playerOrder = data.split(":")[1].split(",")[:4]
-                    print(self.playerOrder)
+                elif "Graveyard" in data:
+                        self.graveyard += int(data.split(" ")[1])
                 else:
                     print(data)
             else:
                 data = self.serverSocket.recv(1024)
                 if not self.is_json(data.decode()):
-                    if data and "acceptNewConnection" not in data.decode('utf-8') and "Graveyard" not in \
-                            data.decode('utf-8') and "newlisten" not in data.decode('utf-8') and "playersock" not in \
-                            data.decode('utf-8') and "RandomToSign" not in data.decode('utf-8')\
-                            and "ServerPublicKey" not in data.decode('utf-8')\
-                            and "receivingfrom" not in data.decode('utf-8') and "sendingto" not in data.decode('utf-8'):
+                    if data and "recvdeckfromserver" not in data.decode('utf-8') and "recvdeckfromclient" not in data.decode('utf-8') and "senddecktoclient" not in \
+                            data.decode('utf-8') and "senddecktoserver" not in data.decode('utf-8')\
+                            and "ServerPublicKey" not in data.decode('utf-8'):
                         print(str(data, 'utf-8'))
                     if "ServerPublicKey" in data.decode('utf-8'):
                         pem = self.serverSocket.recv(1024)
@@ -293,18 +304,7 @@ class Client:
                         self.decrypt = True
                     if "HAND" in data.decode('utf-8'):
                         print(self.printHand())
-                    if "started the round" in data.decode('utf-8'):
-                        self.serverSocket.send(bytes("alreadyplayed", 'utf-8'))
-                        self.flagTurn = False
-                        self.flagTurnStart = True
-                    if "Your Turn" in data.decode('utf-8'):
-                        self.flagTurn = True
-                    if "Graveyard" in data.decode('utf-8'):
-                        self.graveyard += int(data.decode('utf-8').split(" ")[1])
-                    if "End of the game" in data.decode('utf-8'):
-                        self.serverSocket.send(bytes(str(self.graveyard), 'utf-8'))
-                        self.hand.clear()
-                        self.graveyard = 0
+                        self.decrypt = True
                     if "You scored" in data.decode('utf-8'):
                         self.totalPoints += int(data.decode('utf-8').split("You scored ")[1].split(" points")[0])
                         print("Do you agree with the scoreboard?[y/n]")
@@ -314,9 +314,8 @@ class Client:
                             self.serverSocket.send(sign)#self.cipherMsgToServer(sign))
                         else:
                             self.serverSocket.send(bytes("I don't accept the scoreboard.", 'utf-8'))#self.cipherMsgToServer("I don't accept the scoreboard."))
-
+                        self.decrypt = True
                     if "recvdeckfromserver" in data.decode('utf-8'):
-                        print("here")
                         newjsondata = self.serverSocket.recv(1024).decode()
                         newdata = json.loads(newjsondata)
                         if "deckEBT" in newdata.keys():
@@ -324,7 +323,6 @@ class Client:
                             self.temporaryDeck = self.doTheEBT(deck)
                     if "recvdeckfromclient" in data.decode('utf-8'):
                         user = data.decode('utf-8').split(":")[1]
-                        print(user)
                         newdata = json.loads(self.playersInTable[user][0].recv(1024).decode())
                         if "deckAfterEBT" in newdata.keys():
                             deck = newdata["deckAfterEBT"]
@@ -344,20 +342,15 @@ class Client:
             #    self.serverSocket.close()
 
     def doTheEBT(self, deck):
-        print("Deck: "+str(deck))
         action = random.randint(1, 100)
         # print("A:"+str(action) + " E:" + str(self.probEscolha) + " T:" + str(self.probTroca) +
         # " B:" + str(self.probBaralha))
         # Escolher uma carta
-        print("Action:"+str(action))
         if action <= self.probChoice:
-            print("Escolha")
             if len(self.hand) < 13:
                 card = random.randint(0, 51)
                 while deck[card] == [0, 0]:
                     card = random.randint(0, 51)
-
-                print("Card"+str(deck[card]))
                 self.hand.append(deck[card])
                 deck[card] = (0, 0)
                 # deckJson = json.dumps({"deckAfterEBT": deck})
