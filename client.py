@@ -14,8 +14,8 @@ from cryptography.hazmat.primitives import serialization
 
 class Client:
     # Generate a private key for use in the deck encryption
-    clientPrivKey = ec.generate_private_key(ec.SECP384R1(), default_backend())
-    clientPubKey = clientPrivKey.public_key()
+    clientPrivKeyEC = ec.generate_private_key(ec.SECP384R1(), default_backend())
+    clientPubKeyEC = clientPrivKeyEC.public_key()
 
     # ipv4 tcp socket
     serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -173,17 +173,37 @@ class Client:
                     pemCC = self.playersInTable[user][0].recv(1024)
                     pubkeyCC = serialization.load_pem_public_key(pemCC, backend=default_backend())
                     self.playersInTable[user].append(pubkeyCC)
+                    self.playersInTable[user][0].send(bytes("manda ai", 'utf-8'))
+                    pemEC = self.playersInTable[user][0].recv(1024)
+                    pubkeyEC = serialization.load_pem_public_key(pemEC, backend=default_backend())
                     self.playersInTable[user][0].send(bytes("assina ai", 'utf-8'))
-                    print(self.playersInTable[user][0].recv(1024).decode())
+                    signature = self.playersInTable[user][0].recv(1024)
+                    validate = self.validateSignature(self.playersInTable[user][1], pemEC, signature)
+                    print(validate)
+                    if validate == "Verification succeeded":
+                        self.playersInTable[user].append(pubkeyEC)
+                        shared_key = self.sharedKeyECDHE(pubkeyEC)
+                        self.playersInTable[user].append(shared_key)
+                    else:
+                        print("fazer algo")
                 elif "sending" in data:
+                    print("d"+str(data))
                     user = data.split(":")[1]
                     pemCC = self.cc.pubKey.public_bytes(
                         encoding=serialization.Encoding.PEM,
                         format=serialization.PublicFormat.SubjectPublicKeyInfo
                     )
+                    print(user)
                     self.playersInTable[user][0].send(pemCC)
                     self.playersInTable[user][0].recv(1024).decode()
-                    self.playersInTable[user][0].send(bytes("here", 'utf-8'))
+                    pemEC = self.clientPubKeyEC.public_bytes(
+                        encoding=serialization.Encoding.PEM,
+                        format=serialization.PublicFormat.SubjectPublicKeyInfo
+                    )
+                    self.playersInTable[user][0].send(pemEC)
+                    self.playersInTable[user][0].recv(1024).decode()
+                    signature = self.cc.sign(pemEC)
+                    self.playersInTable[user][0].send(signature)
                 else:
                     print(data)
             else:
@@ -277,10 +297,18 @@ class Client:
             #    self.clientDisconnect = True
             #    self.serverSocket.close()
 
-
+    def validateSignature(self, clientPubKey, data, signature):
+        try:
+            clientPubKey.verify(signature, data, padding.PKCS1v15(), hashes.SHA1())
+            return 'Verification succeeded'
+        except:
+            return 'Verification failed'
 
     def createClientKeys(self):
         self.rsaKeyManagement = EntityRSAKeyManagement(4096)
         self.rsaKeyManagement.generateRSAKey()
         self.clientPrivKeyRSA = self.rsaKeyManagement.getRSAPrivKey()
         self.clientPubKeyRSA = self.rsaKeyManagement.getRSAPubKey()
+
+    def sharedKeyECDHE(self, peer_public_key):
+        return self.clientPrivKeyEC.exchange(ec.ECDH(), peer_public_key)

@@ -490,7 +490,7 @@ class Server:
                                             time.sleep(0.5)
                                             user_socket.send(self.cipherMsgToClient(
                                                 bytes("sendingto:" + str(user_name2), 'utf-8'), user_pubkey))
-                                            time.sleep(0.5)
+                                            time.sleep(3)
 
 
             # Send to each player the deck. The player will shuffle it and send it back
