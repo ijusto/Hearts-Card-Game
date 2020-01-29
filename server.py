@@ -298,21 +298,17 @@ class Server:
                                 while resp != "y" and resp != "n":
                                     agreement = True
                                     if resp != "ignore":
-                                        print("Ignore:"+ client_username)
                                         client_socket.send(self.cipherMsgToClient(
                                             bytes("\nDo you agree to play with this party?[Y/N]", 'utf-8'
                                                   ), clientkeyRSA))
                                     resp = self.decipherMsgFromClient(client_socket.recv(1024)).decode()
-                                    print(resp)
                                     if resp == "y":
-                                        print("hereSign:")
                                         client_socket.send(self.cipherMsgToClient(bytes(
-                                            "Sign this challenge:", 'utf-8'), clientkeyRSA))
+                                            "Waiting for all players to agree", 'utf-8'), clientkeyRSA))
                                         client_socket.send(self.cipherMsgToClient(bytes(str(randomSign), 'utf-8'), clientkeyRSA))
                                         signature = self.decipherMsgFromClient(client_socket.recv(1024))
                                         validation = self.validateSignatureRSA(clientkeyRSA, str(randomSign),
                                                                                signature)
-                                        print(validation)
                                         if validation == "Verification failed":
                                             agreement = False
                                         break
@@ -453,13 +449,13 @@ class Server:
             # Wait for all the messages to be sent
             time.sleep(1)
 
-
             #open listens
             for table_num, lst in self.tables.items():
                 if table_num == numTable:
                     for user in lst:
-                        for (user_socket, user_address) in user.keys():
-                            user_socket.send(bytes(str("newlisten" + str(user_address)).encode()))
+                        for (user_socket, user_address), (user_name, user_pubkey) in user.items():
+                            user_socket.send(self.cipherMsgToClient(
+                                bytes(str("newlisten" + str(user_address)).encode()), user_pubkey))
 
             #SEND client socket to each player
             for table_num, lst in self.tables.items():
@@ -472,40 +468,16 @@ class Server:
                                     if user_socket != user_socket2:
                                         if flag:
                                             time.sleep(0.2)
-                                            user_socket.send(bytes(str("playersock"+str(user_address2)+"---"+user_name2).encode()))
+                                            user_socket.send(self.cipherMsgToClient(
+                                                bytes(str("playersock"+str(user_address2)+"---"+user_name2).encode()), user_pubkey))
                                             time.sleep(0.4)
-                                            user_socket2.send(bytes("acceptNewConnection"+"---"+user_name, 'utf-8'))
+                                            user_socket2.send(self.cipherMsgToClient(
+                                                bytes("acceptNewConnection"+"---"+user_name, 'utf-8'), user_pubkey2))
                                     else:
                                         flag = True
 
             time.sleep(0.5)
-            '''
-            for table_num, lst in self.tables.items():
-                if table_num == numTable:
-                    index1 = 0
-                    for user in lst:
-                        flag = False
-                        for (user_socket, user_address) in user.keys():
-                            index2 = 0
-                            for user2 in lst:
-                                for (user_socket2, user_address2) in user2.keys():
-                                    if user_socket != user_socket2:
-                                        if flag:
-                                            user_socket2.send(bytes("receiving:" + str(index1), 'utf-8'))
-                                            time.sleep(0.2)
-                                            user_socket.send(bytes("sending:" + str(index2), 'utf-8'))
-                                            index2 += 1
-                                            time.sleep(0.2)
-                                        else:
-                                            user_socket2.send(bytes("receiving:" + str(index1-1), 'utf-8'))
-                                            time.sleep(0.5)
-                                            user_socket.send(bytes("sending:" + str(index2), 'utf-8'))
-                                            index2 += 1
-                                            time.sleep(0.5)
-                                    else:
-                                        flag = True
-                        index1 += 1
-            '''
+
             for table_num, lst in self.tables.items():
                 if table_num == numTable:
                     for user in lst:
@@ -513,9 +485,11 @@ class Server:
                             for user2 in lst:
                                 for (user_socket2, user_address2), (user_name2, user_pubkey2) in user2.items():
                                     if user_socket != user_socket2:
-                                            user_socket2.send(bytes("receivingfrom:" + str(user_name), 'utf-8'))
+                                            user_socket2.send(self.cipherMsgToClient(
+                                                bytes("receivingfrom:" + str(user_name), 'utf-8'), user_pubkey2))
                                             time.sleep(0.5)
-                                            user_socket.send(bytes("sendingto:" + str(user_name2), 'utf-8'))
+                                            user_socket.send(self.cipherMsgToClient(
+                                                bytes("sendingto:" + str(user_name2), 'utf-8'), user_pubkey))
                                             time.sleep(0.5)
 
 
@@ -523,8 +497,9 @@ class Server:
             for table_num, lst in self.tables.items():
                 if table_num == numTable:
                     for user in lst:
-                        for (user_socket, user_address) in user.keys():
-                            user_socket.send(bytes("\nSHUFFLE\n", 'utf-8'))
+                        for (user_socket, user_address), (user_name, user_pubkey) in user.items():
+                            user_socket.send(self.cipherMsgToClient(
+                                bytes("\nSHUFFLE\n", 'utf-8'), user_pubkey))
                             data = json.dumps({"deckShuffle": self.decks[table_num]})
                             user_socket.send(data.encode())
                             dataJson = user_socket.recv(1024)

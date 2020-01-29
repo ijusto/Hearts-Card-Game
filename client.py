@@ -26,10 +26,8 @@ class Client:
     serverPubKey = None
 
     sessionsNumber = 0
-    pToConnect = [socket.socket(socket.AF_INET, socket.SOCK_STREAM),
-                  socket.socket(socket.AF_INET, socket.SOCK_STREAM),
-                  socket.socket(socket.AF_INET, socket.SOCK_STREAM)]
-    playersInTable = {}
+
+    playersInTable = {} # username : [socket, pubcc, pubec, sharedKey]
 
     probChoice = 0
     probSwitch = 0
@@ -136,7 +134,7 @@ class Client:
                 data = self.decipherMsgFromServer(self.serverSocket.recv(1024)).decode()
                 if "Do you want to play with" in data:
                     self.serverSocket.send(self.cipherMsgToServer(bytes("ignore", 'utf-8')))
-                if "Sign this challenge:" in data:
+                if "Waiting for all players to agree" in data:
                     randomSign = self.decipherMsgFromServer(self.serverSocket.recv(1024)).decode()
                     signature = self.rsaKeyManagement.sign(randomSign)
                     self.serverSocket.send(self.cipherMsgToServer(signature))
@@ -144,6 +142,7 @@ class Client:
                     self.serverSocket.send(self.cipherMsgToServer(bytes("ignore", 'utf-8')))
                 if "CREATING NEW TABLE" in data:
                     self.serverSocket.send(self.cipherMsgToServer(bytes("startgame", 'utf-8')))
+                if "SHUFFLE" in data:
                     self.decrypt = False
                 if "Sign your pubkey" in data:
                     pemRSA = self.clientPubKeyRSA.public_bytes(
@@ -154,6 +153,33 @@ class Client:
                     self.serverSocket.send(self.cipherMsgToServer(sign))
                 elif "ignora" in data:
                     self.serverSocket.send(self.cipherMsgToServer(bytes("ignore", 'utf-8')))
+                elif "newlisten" in data:
+                    sock = data.replace("newlisten", "").replace("(", "").replace(")", "").replace(
+                        "\'", "").split(",")
+                    self.listener.bind((sock[0], int(sock[1])))
+                    self.listener.listen(4)
+                elif "playersock" in data:
+                        message = data.split("---")
+                        sock = message[0].replace("playersock", "").replace("(", "").replace(")", "").replace("\'", "").split(",")
+                        self.playersInTable.update({message[1]: [socket.socket(socket.AF_INET,
+                                                                              socket.SOCK_STREAM)]})
+                        self.playersInTable[message[1]][0].connect((sock[0], int(sock[1])))
+                elif "acceptNewConnection" in data:
+                    message = data.replace("acceptNewConnection---", "")
+                    sock, add = self.listener.accept()
+                    self.playersInTable.update({message: [sock]})
+                elif "receiving" in data:
+                    user = data.split(":")[1]
+                    pemCC = self.playersInTable[user][0].recv(1024)
+                    pubkeyCC = serialization.load_pem_public_key(pemCC, backend=default_backend())
+                    self.playersInTable[user].append(pubkeyCC)
+                elif "sending" in data:
+                    user = data.split(":")[1]
+                    pemCC = self.cc.pubKey.public_bytes(
+                        encoding=serialization.Encoding.PEM,
+                        format=serialization.PublicFormat.SubjectPublicKeyInfo
+                    )
+                    self.playersInTable[user][0].send(pemCC)
                 else:
                     print(data)
             else:
@@ -162,7 +188,8 @@ class Client:
                     if data and "acceptNewConnection" not in data.decode('utf-8') and "Graveyard" not in \
                             data.decode('utf-8') and "newlisten" not in data.decode('utf-8') and "playersock" not in \
                             data.decode('utf-8') and "RandomToSign" not in data.decode('utf-8')\
-                            and "ServerPublicKey" not in data.decode('utf-8'):
+                            and "ServerPublicKey" not in data.decode('utf-8')\
+                            and "receivingfrom" not in data.decode('utf-8') and "sendingto" not in data.decode('utf-8'):
                         print(str(data, 'utf-8'))
                     if "ServerPublicKey" in data.decode('utf-8'):
                         pem = self.serverSocket.recv(1024)
@@ -179,21 +206,6 @@ class Client:
                         self.serverSocket.send(self.cipherMsgToServer(pemCC))
                         self.serverSocket.send(self.cipherMsgToServer(pemRSA))
                         self.decrypt = True
-                    if "newlisten" in data.decode('utf-8'):
-                        sock = data.decode('utf-8').replace("newlisten", "").replace("(", "").replace(")", "").replace(
-                            "\'", "").split(",")
-                        self.listener.bind((sock[0], int(sock[1])))
-                        self.listener.listen(4)
-                    if "playersock" in data.decode('utf-8'):
-                        message = data.decode('utf-8').split("---")
-                        sock = message[0].replace("playersock", "").replace("(", "").replace(")", "").replace("\'", "").split(",")
-                        self.playersInTable.update({message[1]: socket.socket(socket.AF_INET,
-                                                                              socket.SOCK_STREAM)})
-                        self.playersInTable[message[1]].connect((sock[0], int(sock[1])))
-                    if "acceptNewConnection" in data.decode(('utf-8')):
-                        message = data.decode('utf-8').replace("acceptNewConnection---", "")
-                        sock, add = self.listener.accept()
-                        self.playersInTable.update({message: sock})
                     if "HAND" in data.decode('utf-8'):
                         print(self.printHand())
                     if "started the round" in data.decode('utf-8'):
@@ -210,20 +222,6 @@ class Client:
                         self.graveyard = 0
                     if "You scored" in data.decode('utf-8'):
                         self.totalPoints += int(data.decode('utf-8').split(" ")[2])
-                    if "receiving" in data.decode('utf-8'):
-                        #i = int(data.decode('utf-8').split(":")[1])
-                        #print(self.pToConnect[i].recv(1024).decode())
-                        user = data.decode('utf-8').split(":")[1]
-                        print("User:"+user)
-                        print("Socket: " + str(self.playersInTable[user]))
-                        print(self.playersInTable[user].recv(1024).decode())
-                    if "sending" in data.decode('utf-8'):
-                        #i = int(data.decode('utf-8').split(":")[1])
-                        #self.pToConnect[i].send(bytes("funciona", 'utf-8'))
-                        user = data.decode('utf-8').split(":")[1]
-                        print("User2: "+user)
-                        print("Socket2: "+str(self.playersInTable[user]))
-                        self.playersInTable[user].send(bytes("funciona", 'utf-8'))
                     if not data:
                         continue
                 else:

@@ -46,10 +46,10 @@ class EllipticCurveDiffieHellman:
         # Generate a private key for use in the exchange.
         self.exchange_private_key = ec.generate_private_key(ec.SECP384R1(), default_backend())
         self.exchange_public_key = self.exchange_private_key.public_key()
-        self.serialized_public = self.exchange_public_key.public_bytes(encoding=serialization.Encoding.PEM,
-                                                              format=serialization.PublicFormat.SubjectPublicKeyInfo)
+        #self.serialized_public = self.exchange_public_key.public_bytes(encoding=serialization.Encoding.PEM,
+        #                                                      format=serialization.PublicFormat.SubjectPublicKeyInfo)
 
-        loaded_public_key = serialization.load_pem_public_key(self.serialized_public, backend = default_backend())
+        #loaded_public_key = serialization.load_pem_public_key(self.serialized_public, backend = default_backend())
 
     def cipherUsingSharedKey(self, shared_key, msg):
         # Setup cipher: AES in CBC mode, w/ a random IV and PKCS #7 padding (similar to PKCS #5)
