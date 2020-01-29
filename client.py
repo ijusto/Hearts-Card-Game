@@ -4,9 +4,7 @@ import json
 import random
 import time
 from citizencard import CitizenCard
-import pickle
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
 from EntityRSAKeyManagement import EntityRSAKeyManagement
@@ -14,6 +12,7 @@ from cryptography.hazmat.primitives import serialization
 import string
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from ellipticCurveDiffieHellman import EllipticCurveDiffieHellman
+import sys
 
 class Client:
     ecdh = EllipticCurveDiffieHellman()
@@ -208,7 +207,8 @@ class Client:
                         shared_key = self.ecdh.sharedKeyECDHE(pubkeyEC)
                         self.playersInTable[user].append(shared_key)
                     else:
-                        print("fazer algo")
+                        print("Secury issues, verification failed")
+                        sys.exit(0)
                 elif "sending" in data:
                     print("d"+str(data))
                     user = data.split(":")[1]
