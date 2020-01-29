@@ -1,4 +1,5 @@
 import socket
+import sys
 import threading
 import json
 import time
@@ -688,22 +689,39 @@ class Server:
             for table_num, lst in self.tables.items():
                 if table_num == numTable:
                     for user in lst:
-                        for (user_socket, user_address) in user.keys():
+                        for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                             user_socket.send(bytes("End of the game", 'utf-8'))
                             points = int(user_socket.recv(1024).decode())
-                            score.append([user_socket, points])
+                            score.append([user_socket, user_name, points, user_pubkey])
             # Verify if any player has 26 points
             maxPoints = False
             for points in score:
                 if 26 == points[1]:
                     maxPoints = True
+
+            scoresToSend = ""
             for points in score:
                 if maxPoints:
-                    if 26 == points[1]:
-                        points[1] = 0
+                    if 26 == points[2]:
+                        points[2] = 0
                     else:
-                        points[1] = 26
-                points[0].send(bytes("You scored " + str(points[1]) + " points", 'utf-8'))
+                        points[2] = 26
+                scoresToSend += str(points[1]) + " scored " + str(points[2]) + " points\n"
+            for points in score:
+                scoresToSend = scoresToSend.split(points[1])[0] + "You" + scoresToSend.split(points[1])[1]
+                points[0].send(bytes(scoresToSend, 'utf-8'))
+                signature = self.decipherMsgFromClient(points[0].recv(1024))
+                if signature.decode() != "I don't accept the scoreboard.":
+                    validate = self.validateSignature(points[3], scoresToSend, signature)
+                    if validate == 'Verification succeeded':
+                        continue
+                    else:
+                        print("Something went wrong. Verification failed. Emergency exit.")
+                        sys.exit(0)
+                else:
+                    print("Somebody doesn't agree with the score board.")
+                    sys.exit(0)
+
             # Deck reset
             del self.decks[numTable]
             diamonds = 'diamonds'
