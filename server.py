@@ -478,23 +478,6 @@ class Server:
 
             time.sleep(0.5)
 
-            '''
-            for table_num, lst in self.tables.items():
-                if table_num == numTable:
-                    for user in lst:
-                        for (user_socket, user_address), (user_name, user_pubkey) in user.items():
-                            for user2 in lst:
-                                for (user_socket2, user_address2), (user_name2, user_pubkey2) in user2.items():
-                                    if user_socket != user_socket2:
-                                            user_socket2.send(self.cipherMsgToClient(
-                                                bytes("receivingfrom:" + str(user_name), 'utf-8'), user_pubkey2))
-                                            time.sleep(0.5)
-                                            user_socket.send(self.cipherMsgToClient(
-                                                bytes("sendingto:" + str(user_name2), 'utf-8'), user_pubkey))
-                                            time.sleep(3)
-            
-            '''
-
             usernames = []
             for table_num, lst in self.tables.items():
                 if table_num == numTable:
@@ -509,7 +492,6 @@ class Server:
                             s = ""
                             for u in usernames:
                                 s += u+","
-                            print(s)
                             user_socket.send(self.cipherMsgToClient(bytes("OTeuUsername:"+user_name, 'utf-8'), user_pubkey))
                             time.sleep(0.05)
                             user_socket.send(self.cipherMsgToClient(bytes("OrdemDosPlayers:"+s, 'utf-8'), user_pubkey))
@@ -520,7 +502,6 @@ class Server:
                             data = json.dumps({"deckShuffle": self.decks[table_num]})
                             user_socket.send(data.encode())
                             dataJson = user_socket.recv(1024)
-                            print(dataJson)
                             objectJson = json.loads(dataJson.decode())
                             dataShuffled = objectJson['deckShuffled']
                             self.decks[table_num] = dataShuffled
@@ -531,14 +512,6 @@ class Server:
                         for (user_socket, user_address) in user.keys():
                                 user_socket.send(bytes("\nCARD DISTRIBUTION\n", 'utf-8'))
 
-            ##TODO:
-            ##O servidor escolhe um jogador aleatorio e manda-lhe o deck
-            ##O servidor diz a esse jogador para enviar o deck para um jogador aleatorio
-            ##O servidor diz a esse novo jogador aleatorio para madar o deck a outro jogador aleatorio
-            ##Ao fim de X iterações o servidor pede para o jogador com o deck para lhe enviar para que ele possa
-            ##  verificar se o deck ainda tem cartas
-
-            #Pedaço de codigo nao testado
             while not all(card == self.decks[numTable][0] for card in self.decks[numTable]):
                 sendtorandom = random.choice(usernames)
                 for table_num, lst in self.tables.items():
@@ -548,12 +521,11 @@ class Server:
                                 if user_name == sendtorandom:
                                     user_socket.send(bytes('recvdeckfromserver', 'utf-8'))
                                     data = json.dumps({"deckEBT": self.decks[table_num]})
-                                    time.sleep(0.05)
+                                    time.sleep(0.01)
                                     user_socket.send(data.encode())
                 time.sleep(0.1)
                 iterationNUM = random.randint(2, 100)
                 iterationRN = 0
-                print("iterationNUM" + str(iterationNUM))
                 while iterationRN < iterationNUM:
                     sendtorandom2 = sendtorandom
                     while sendtorandom2 == sendtorandom:
@@ -564,57 +536,36 @@ class Server:
                                 for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                     if user_name == sendtorandom2:
                                         user_socket.send(bytes('recvdeckfromclient:'+sendtorandom, 'utf-8'))
-                    time.sleep(0.05)
+                    time.sleep(0.01)
                     for table_num, lst in self.tables.items():
                         if table_num == numTable:
                             for user in lst:
                                 for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                     if user_name == sendtorandom:
                                         user_socket.send(bytes('senddecktoclient:'+sendtorandom2, 'utf-8'))
-                    time.sleep(0.1)
+                    time.sleep(0.01)
                     sendtorandom = sendtorandom2
                     iterationRN += 1
-                    print("iterationRN"+str(iterationRN))
                 for table_num, lst in self.tables.items():
                     if table_num == numTable:
                         for user in lst:
                             for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                 if user_name == sendtorandom:
-                                    print("here")
                                     user_socket.send(bytes('senddecktoserver', 'utf-8'))
                                     dataJson = user_socket.recv(1024)
                                     objectJson = json.loads(dataJson.decode())
                                     dataAfterEBT = objectJson['deckAfterEBT']
                                     self.decks[table_num] = dataAfterEBT
                                     print(self.decks[table_num])
-                time.sleep(0.05)
-            print("here2")
-
-            #Pedaço de codigo a eliminar
-            # All players have shuffled it
-            # Send for each player. Each player can choose a card, shuffle again or switch a card
-            '''
-            while not all(card == self.decks[numTable][0] for card in self.decks[numTable]):
-                for table_num, lst in self.tables.items():
-                    if table_num == numTable:
-                        for user in lst:
-                            for (user_socket, user_address) in user.keys():
-                                if not all(card == self.decks[table_num][0] for card in self.decks[table_num]):
-                                    data = json.dumps({"deckEBT": self.decks[table_num]})
-                                    user_socket.send(data.encode())
-                                    dataJson = user_socket.recv(1024)
-                                    objectJson = json.loads(dataJson.decode())
-                                    dataAfterEBT = objectJson['deckAfterEBT']
-                                    self.decks[table_num] = dataAfterEBT
-            '''
+                time.sleep(0.01)
 
             # Show hands
             for table_num, lst in self.tables.items():
                 if table_num == numTable:
                     for user in lst:
-                        for (user_socket, user_address) in user.keys():
+                        for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                             user_socket.send(bytes("\nHAND:", 'utf-8'))
-                            user_socket.send(bytes("\nPlayer who has the 2 clubs starts playing", 'utf-8'))
+                            user_socket.send(self.cipherMsgToClient(bytes("\nPlayer who has the 2 clubs starts playing", 'utf-8'),user_pubkey))
                             connectionThread = threading.Thread(target=self.firstPlay,
                                                                 args=(user_socket, user_address, numTable))
                             connectionThread.daemon = True
@@ -636,37 +587,37 @@ class Server:
                             for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                 if round_ == 1:
                                     if user_socket != self.firstPlayer:
-                                        user_socket.send(bytes("Your Turn", 'utf-8'))
-                                        card = user_socket.recv(1024).decode()
+                                        user_socket.send(self.cipherMsgToClient(bytes("Your Turn", 'utf-8'), user_pubkey))
+                                        card = self.decipherMsgFromClient(user_socket.recv(1024)).decode()
                                         while not self.validCard(card):
-                                            user_socket.send(bytes("That is not a card", 'utf-8'))
-                                            card = user_socket.recv(1024).decode()
+                                            user_socket.send(self.cipherMsgToClient(bytes("That is not a card", 'utf-8'), user_pubkey))
+                                            card = self.decipherMsgFromClient(user_socket.recv(1024)).decode()
                                         roundCards.append(card)
                                         graveyardCards.append((user_socket, card))
                                         # Send the played card to the rest of the players
                                         for table_num2, list2 in self.tables.items():
                                             if table_num2 == numTable:
                                                 for user2 in list2:
-                                                    for (user_socket2, user_address2) in user2.keys():
+                                                    for (user_socket2, user_address2), (user_name2, user_pubkey2) in user2.items():
                                                         if user_socket != user_socket2:
-                                                            user_socket2.send(bytes(user_name + ": " + card, 'utf-8'))
+                                                            user_socket2.send(self.cipherMsgToClient(bytes(user_name + ": " + card, 'utf-8'), user_pubkey2))
                                     else:
                                         roundCards.append(self.firstCard)
                                         graveyardCards.append((self.firstPlayer, self.firstCard))
                                 else:
-                                    user_socket.send(bytes("Your Turn", 'utf-8'))
-                                    card = user_socket.recv(1024).decode()
+                                    user_socket.send(self.cipherMsgToClient(bytes("Your Turn", 'utf-8'), user_pubkey))
+                                    card = self.decipherMsgFromClient(user_socket.recv(1024)).decode()
                                     while not self.validCard(card):
-                                        user_socket.send(bytes("That is not a card", 'utf-8'))
-                                        card = user_socket.recv(1024).decode()
+                                        user_socket.send(self.cipherMsgToClient(bytes("That is not a card", 'utf-8'), user_pubkey))
+                                        card = self.decipherMsgFromClient(user_socket.recv(1024)).decode()
                                     roundCards.append(card)
                                     graveyardCards.append((user_socket, card))
                                     for table_num2, list2 in self.tables.items():
                                         if table_num2 == numTable:
                                             for user2 in list2:
-                                                for (user_socket2, user_address2) in user2.keys():
+                                                for (user_socket2, user_address2), (user_name2, user_pubkey2) in user2.items():
                                                     if user_socket != user_socket2:
-                                                        user_socket2.send(bytes(user_name + ": " + card, 'utf-8'))
+                                                        user_socket2.send(self.cipherMsgToClient(bytes(user_name + ": " + card, 'utf-8'), user_pubkey2))
                 # See who won the round
                 winner = self.roundWinner(roundCards)
                 graveyard = 0
@@ -680,19 +631,20 @@ class Server:
                 for table_num, lst in self.tables.items():
                     if table_num == numTable:
                         for (user_socket, user_address), (user_name, user_pubkey) in lst[winner].items():
-                            user_socket.send(bytes("You won the round", 'utf-8'))
+                            user_socket.send(self.cipherMsgToClient(bytes("You won the round", 'utf-8'), user_pubkey))
+                            print("here")
                             time.sleep(0.1)
                             user_socket.send(bytes("\nHAND:", 'utf-8'))
                             time.sleep(0.1)
-                            user_socket.send(bytes("Graveyard " + str(graveyard), 'utf-8'))
+                            user_socket.send(self.cipherMsgToClient(bytes("Graveyard " + str(graveyard), 'utf-8'), user_pubkey))
                             self.firstPlayer = user_socket
                             username = user_name
                 for table_num, lst in self.tables.items():
                     if table_num == numTable:
                         for user in lst:
-                            for (user_socket, user_address) in user.keys():
+                            for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                 if user_socket != self.firstPlayer:
-                                    user_socket.send(bytes(username + " won the round", 'utf-8'))
+                                    user_socket.send(self.cipherMsgToClient(bytes(username + " won the round", 'utf-8'), user_pubkey))
                                     time.sleep(0.1)
                                     user_socket.send(bytes("\nHAND:", 'utf-8'))
                 self.arrangeTable(numTable)
@@ -703,8 +655,8 @@ class Server:
                 if table_num == numTable:
                     for user in lst:
                         for (user_socket, user_address), (user_name, user_pubkey) in user.items():
-                            user_socket.send(bytes("End of the game", 'utf-8'))
-                            points = int(user_socket.recv(1024).decode())
+                            user_socket.send(self.cipherMsgToClient(bytes("End of the game", 'utf-8'), user_pubkey))
+                            points = int(self.decipherMsgFromClient((user_socket.recv(1024).decode())))
                             score.append([user_socket, user_name, points, user_pubkey])
             # Verify if any player has 26 points
             maxPoints = False
@@ -791,14 +743,14 @@ class Server:
             return False
 
     def firstPlay(self, client_socket, client_address, numTable):
-        card = client_socket.recv(1024).decode()
+        card = self.decipherMsgFromClient(client_socket.recv(1024)).decode()
         if card != "alreadyplayed":
             username = ""
             while not self.validCard(card):
                 if card == "alreadyplayed":
                     break
-                client_socket.send(bytes("That is not a card", 'utf-8'))
-                card = client_socket.recv(1024).decode()
+                client_socket.send(self.cipherMsgToClient(bytes("That is not a card", 'utf-8')))
+                card = self.decipherMsgFromClient(client_socket.recv(1024)).decode()
             if card != "alreadyplayed":
                 for table_num, lst in self.tables.items():
                     if table_num == numTable:
@@ -811,8 +763,8 @@ class Server:
                         for user in lst:
                             for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                 if user_socket != client_socket:
-                                    user_socket.send(bytes(username + " started the round", 'utf-8'))
-                                    user_socket.send(bytes(username + ": " + card, 'utf-8'))
+                                    user_socket.send(self.cipherMsgToClient(bytes(username + " started the round", 'utf-8'), user_pubkey))
+                                    user_socket.send(self.cipherMsgToClient(bytes(username + ": " + card, 'utf-8'), user_pubkey))
                 self.firstCard = card
                 self.firstPlayer = client_socket
 
