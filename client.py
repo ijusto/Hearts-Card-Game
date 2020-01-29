@@ -261,7 +261,6 @@ class Client:
                         self.graveyard = 0
                     if "You scored" in data.decode('utf-8'):
                         self.totalPoints += int(data.decode('utf-8').split(" ")[2])
-                    #CODIGO NAO TESTADO
                     if "recvdeckfromserver" in data.decode('utf-8'):
                         print("here")
                         newjsondata = self.serverSocket.recv(1024).decode()
