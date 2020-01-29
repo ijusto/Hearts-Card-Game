@@ -293,7 +293,15 @@ class Client:
                         self.hand.clear()
                         self.graveyard = 0
                     if "You scored" in data.decode('utf-8'):
-                        self.totalPoints += int(data.decode('utf-8').split(" ")[2])
+                        self.totalPoints += int(data.decode('utf-8').split("You scored ")[1].split(" points")[0])
+                        print("Do you agree with the scoreboard?[y/n]")
+                        resp = input("")
+                        if resp == "y":
+                            sign = self.cc.sign(data)
+                            self.serverSocket.send(sign)#self.cipherMsgToServer(sign))
+                        else:
+                            self.serverSocket.send(bytes("I don't accept the scoreboard.", 'utf-8'))#self.cipherMsgToServer("I don't accept the scoreboard."))
+
                     if "recvdeckfromserver" in data.decode('utf-8'):
                         print("here")
                         newjsondata = self.serverSocket.recv(1024).decode()
