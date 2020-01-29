@@ -37,7 +37,7 @@ class Client:
 
     sessionsNumber = 0
 
-    playersInTable = {} # username : [socket, pubcc, pubec, sharedKey]
+    playersInTable = {} # username :  [socket, pubcc, pubec, sharedKey, keyCipherDeck]
 
     probChoice = 0
     probSwitch = 0
@@ -105,14 +105,23 @@ class Client:
     def cipherDeck(self, deck):
         cipherDeck = []
         for card in deck:
-            # Encrypt the plaintext using OAEP + MGF1(SHA256) + SHA256
-            cipherDeck += [self.clientPrivKey.encrypt(card, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(),
-                                                                        None))]
-    def decipherDeck(self, deck, keys):
+            for rank, suit in card:
+                cipherDeck += [self.ecdh.cipherUsingSharedKey(self.secretKeyDeck, rank),
+                               self.ecdh.cipherUsingSharedKey(self.secretKeyDeck, suit)]
+        return cipherDeck
+
+    def decipherDeck(self, deck, cipherOrderPlayers):
         decipherHand = []
-        for key in keys: # all pub keys in order
+        keys = []
+        decipherOrderPlayers = cipherOrderPlayers[::-1]
+        for username in decipherOrderPlayers:
+            keys.append(self.playersInTable[username][4]) # playersInTable[username] = [socket, pubcc, pubec, sharedKey, keyCipherDeck]
+
+        for key in keys: # all keys to cipher deck in order
             for card in deck:
-                decipherHand += key.decrypt(card, padding.OAEP(padding.MGF1(hashes.SHA256()), hashes.SHA256(), None))
+                for rank, suit in card:
+                    decipherHand += [self.ecdh.decipherUsingSharedKey(key, rank),
+                                   self.ecdh.decipherUsingSharedKey(key, suit)]
             deck = decipherHand
 
     def cipherMsgToServer(self, msg):
