@@ -50,6 +50,8 @@ class EllipticCurveDiffieHellman:
         #loaded_public_key = serialization.load_pem_public_key(self.serialized_public, backend = default_backend())
 
     def cipherUsingSharedKey(self, shared_key, msg):
+        if isinstance(msg, str):
+            msg = bytes(msg, 'utf-8')
         # Setup cipher: AES in CBC mode, w/ a random IV and PKCS #7 padding (similar to PKCS #5)
         iv = os.urandom(algorithms.AES.block_size // 8)
         cipher = Cipher(algorithms.AES(shared_key), modes.CBC(iv), default_backend())
@@ -83,6 +85,8 @@ class EllipticCurveDiffieHellman:
         return iv + ciphertext + encryptor.finalize()
 
     def decipherUsingSharedKey(self, shared_key, msg):
+        if isinstance(msg, str):
+            msg = bytes(msg, 'utf-8')
         # Setup cipher: AES in CBC mode, w/ a random IV and PKCS #7 padding (similar to PKCS #5)
         iv = msg[:algorithms.AES.block_size // 8]
         msg = msg[algorithms.AES.block_size // 8:]

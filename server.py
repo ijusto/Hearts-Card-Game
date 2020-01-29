@@ -3,8 +3,6 @@ import sys
 import threading
 import json
 import time
-#from citizencard import CitizenCard
-import pickle
 from cryptography.hazmat.primitives.asymmetric import rsa
 from EntityRSAKeyManagement import EntityRSAKeyManagement
 import random
@@ -12,6 +10,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
+from base64 import b64encode
 
 class Server:
 
@@ -497,17 +496,31 @@ class Server:
             '''
 
             usernames = []
-            # Send to each player the deck. The player will shuffle it and send it back
             for table_num, lst in self.tables.items():
                 if table_num == numTable:
                     for user in lst:
                         for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                             usernames.append(user_name)
+            # Send to each player the deck. The player will shuffle it and send it back
+            for table_num, lst in self.tables.items():
+                if table_num == numTable:
+                    for user in lst:
+                        for (user_socket, user_address), (user_name, user_pubkey) in user.items():
+                            s = ""
+                            for u in usernames:
+                                s += u+","
+                            print(s)
+                            user_socket.send(self.cipherMsgToClient(bytes("OTeuUsername:"+user_name, 'utf-8'), user_pubkey))
+                            time.sleep(0.05)
+                            user_socket.send(self.cipherMsgToClient(bytes("OrdemDosPlayers:"+s, 'utf-8'), user_pubkey))
+                            time.sleep(0.05)
                             user_socket.send(self.cipherMsgToClient(
                                 bytes("\nSHUFFLE\n", 'utf-8'), user_pubkey))
+                            time.sleep(0.05)
                             data = json.dumps({"deckShuffle": self.decks[table_num]})
                             user_socket.send(data.encode())
                             dataJson = user_socket.recv(1024)
+                            print(dataJson)
                             objectJson = json.loads(dataJson.decode())
                             dataShuffled = objectJson['deckShuffled']
                             self.decks[table_num] = dataShuffled

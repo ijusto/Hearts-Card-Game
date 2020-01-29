@@ -13,6 +13,7 @@ import string
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from ellipticCurveDiffieHellman import EllipticCurveDiffieHellman
 import sys
+import base64
 
 class Client:
     ecdh = EllipticCurveDiffieHellman()
@@ -32,10 +33,13 @@ class Client:
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     clientDisconnect = False
 
+    playerOrder = []
+
     cc = None
     serverPubKey = None
 
     sessionsNumber = 0
+    username = ""
 
     playersInTable = {} # username :  [socket, pubcc, pubec, sharedKey, keyCipherDeck]
 
@@ -103,25 +107,32 @@ class Client:
         return h
 
     def cipherDeck(self, deck):
-        cipherDeck = []
-        for card in deck:
-            for rank, suit in card:
-                cipherDeck += [self.ecdh.cipherUsingSharedKey(self.secretKeyDeck, rank),
-                               self.ecdh.cipherUsingSharedKey(self.secretKeyDeck, suit)]
+        if self.username == self.playerOrder[0]:
+            cipherDeck = []
+            for card in deck:
+                cipherDeck += [(self.ecdh.cipherUsingSharedKey(self.secretKeyDeck, str(card[0])),
+                                self.ecdh.cipherUsingSharedKey(self.secretKeyDeck, str(card[1])))]
+        else:
+            cipherDeck = []
+            for card in deck:
+                cipherDeck += [
+                    self.ecdh.cipherUsingSharedKey(self.secretKeyDeck, str(card[0])),
+
+                                    self.ecdh.cipherUsingSharedKey(self.secretKeyDeck, str((card[1])))]
+
         return cipherDeck
 
-    def decipherDeck(self, deck, cipherOrderPlayers):
+    def decipherDeck(self, deck):
         decipherHand = []
         keys = []
-        decipherOrderPlayers = cipherOrderPlayers[::-1]
+        decipherOrderPlayers = self.playerOrder[::-1]
         for username in decipherOrderPlayers:
             keys.append(self.playersInTable[username][4]) # playersInTable[username] = [socket, pubcc, pubec, sharedKey, keyCipherDeck]
 
         for key in keys: # all keys to cipher deck in order
             for card in deck:
-                for rank, suit in card:
-                    decipherHand += [self.ecdh.decipherUsingSharedKey(key, rank),
-                                   self.ecdh.decipherUsingSharedKey(key, suit)]
+                decipherHand += [(self.ecdh.decipherUsingSharedKey(key, str(card[0])),
+                               self.ecdh.decipherUsingSharedKey(key, str(card[1])))]
             deck = decipherHand
 
     def cipherMsgToServer(self, msg):
@@ -165,6 +176,13 @@ class Client:
                 if "CREATING NEW TABLE" in data:
                     self.serverSocket.send(self.cipherMsgToServer(bytes("startgame", 'utf-8')))
                 if "SHUFFLE" in data:
+                    dataJson = json.loads(self.serverSocket.recv(1024).decode())
+                    if "deckShuffle" in dataJson.keys():
+                        deck = dataJson["deckShuffle"]
+                        deck = self.shuffle(deck)
+                        #deck = self.cipherDeck(deck)
+                        deckJson = json.dumps({"deckShuffled": deck})
+                        self.serverSocket.send(deckJson.encode())
                     self.decrypt = False
                 if "Sign your pubkey" in data:
                     pemRSA = self.clientPubKeyRSA.public_bytes(
@@ -227,6 +245,13 @@ class Client:
                     self.playersInTable[user][0].recv(1024).decode()
                     signature = self.cc.sign(pemEC)
                     self.playersInTable[user][0].send(signature)
+                elif "OTeuUsername" in data:
+                    print("here")
+                    self.username = data.split(":")[1]
+                elif "OrdemDosPlayers" in data:
+                    print(data)
+                    self.playerOrder = data.split(":")[1].split(",")[:4]
+                    print(self.playerOrder)
                 else:
                     print(data)
             else:
@@ -253,7 +278,6 @@ class Client:
                         self.serverSocket.send(self.cipherMsgToServer(pemCC))
                         self.serverSocket.send(self.cipherMsgToServer(pemRSA))
                         self.decrypt = True
-
                     if "HAND" in data.decode('utf-8'):
                         print(self.printHand())
                     if "started the round" in data.decode('utf-8'):
