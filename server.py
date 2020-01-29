@@ -478,6 +478,7 @@ class Server:
 
             time.sleep(0.5)
 
+            '''
             for table_num, lst in self.tables.items():
                 if table_num == numTable:
                     for user in lst:
@@ -491,13 +492,16 @@ class Server:
                                             user_socket.send(self.cipherMsgToClient(
                                                 bytes("sendingto:" + str(user_name2), 'utf-8'), user_pubkey))
                                             time.sleep(3)
+            
+            '''
 
-
+            usernames = []
             # Send to each player the deck. The player will shuffle it and send it back
             for table_num, lst in self.tables.items():
                 if table_num == numTable:
                     for user in lst:
                         for (user_socket, user_address), (user_name, user_pubkey) in user.items():
+                            usernames.append(user_name)
                             user_socket.send(self.cipherMsgToClient(
                                 bytes("\nSHUFFLE\n", 'utf-8'), user_pubkey))
                             data = json.dumps({"deckShuffle": self.decks[table_num]})
@@ -506,12 +510,64 @@ class Server:
                             objectJson = json.loads(dataJson.decode())
                             dataShuffled = objectJson['deckShuffled']
                             self.decks[table_num] = dataShuffled
+
             for table_num, lst in self.tables.items():
                 if table_num == numTable:
                     for user in lst:
                         for (user_socket, user_address) in user.keys():
-                            user_socket.send(bytes("\nCARD DISTRIBUTION\n", 'utf-8'))
-            print(self.decks[numTable])
+                                user_socket.send(bytes("\nCARD DISTRIBUTION\n", 'utf-8'))
+
+            ##TODO:
+            ##O servidor escolhe um jogador aleatorio e manda-lhe o deck
+            ##O servidor diz a esse jogador para enviar o deck para um jogador aleatorio
+            ##O servidor diz a esse novo jogador aleatorio para madar o deck a outro jogador aleatorio
+            ##Ao fim de X iterações o servidor pede para o jogador com o deck para lhe enviar para que ele possa
+            ##  verificar se o deck ainda tem cartas
+
+            #Pedaço de codigo nao testado
+            while not all(card == self.decks[numTable][0] for card in self.decks[numTable]):
+                sendtorandom = random.choice(usernames)
+                for table_num, lst in self.tables.items():
+                    if table_num == numTable:
+                        for user in lst:
+                            for (user_socket, user_address), (user_name, user_pubkey) in user.items():
+                                if user_name == sendtorandom:
+                                    user_socket.send(bytes('recvdeckfromserver', 'utf-8'))
+                                    data = json.dumps({"deckEBT": self.decks[table_num]})
+                                    user_socket.send(data.encode())
+                iterationNUM = random.randint(2,100)
+                iterationRN = 0
+                while iterationRN < iterationNUM:
+                    sendtorandom2 = sendtorandom
+                    while sendtorandom2 == sendtorandom:
+                        sendtorandom2 = random.choice(usernames)
+                    for table_num, lst in self.tables.items():
+                        if table_num == numTable:
+                            for user in lst:
+                                for (user_socket, user_address), (user_name, user_pubkey) in user.items():
+                                    if user_name == sendtorandom2:
+                                        user_socket.send(bytes('recvdeckfromclient:'+sendtorandom, 'utf-8'))
+                    for table_num, lst in self.tables.items():
+                        if table_num == numTable:
+                            for user in lst:
+                                for (user_socket, user_address), (user_name, user_pubkey) in user.items():
+                                    if user_name == sendtorandom:
+                                        user_socket.send(bytes('senddecktoclient:'+sendtorandom2, 'utf-8'))
+                    sendtorandom = sendtorandom2
+                    iterationRN += 1
+                for table_num, lst in self.tables.items():
+                    if table_num == numTable:
+                        for user in lst:
+                            for (user_socket, user_address), (user_name, user_pubkey) in user.items():
+                                if user_name == sendtorandom:
+                                    user_socket.send(bytes('senddecktoserver', 'utf-8'))
+                                    dataJson = user_socket.recv(1024)
+                                    objectJson = json.loads(dataJson.decode())
+                                    dataAfterEBT = objectJson['deckAfterEBT']
+                                    self.decks[table_num] = dataAfterEBT
+
+
+            #Pedaço de codigo a eliminar
             # All players have shuffled it
             # Send for each player. Each player can choose a card, shuffle again or switch a card
             while not all(card == self.decks[numTable][0] for card in self.decks[numTable]):
@@ -526,6 +582,7 @@ class Server:
                                     objectJson = json.loads(dataJson.decode())
                                     dataAfterEBT = objectJson['deckAfterEBT']
                                     self.decks[table_num] = dataAfterEBT
+
             # Show hands
             for table_num, lst in self.tables.items():
                 if table_num == numTable:

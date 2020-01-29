@@ -35,6 +35,9 @@ class Client:
 
     hand = []
 
+    temporaryDeck = []
+
+
     decrypt = False
     clientPrivKeyRSA = None
     clientPubKeyRSA = None
@@ -246,6 +249,27 @@ class Client:
                         self.graveyard = 0
                     if "You scored" in data.decode('utf-8'):
                         self.totalPoints += int(data.decode('utf-8').split(" ")[2])
+                    #CODIGO NAO TESTADO
+                    if "recvdeckfromserver" in data.decode('utf-8'):
+                        data = json.loads(self.serverSocket.recv(1024).decode())
+                        if "deckEBT" in data.keys():
+                            # Pode escolher e pode trocar e baralha sempre
+                            deck = data["deckEBT"]
+                            self.temporaryDeck = self.doTheEBT(deck)
+                    if "recvdeckfromclient" in data.decode('utf-8'):
+                        user = data.decode('utf-8').split(":")
+                        newdata = json.loads(self.playersInTable[user][0].recv(1024).decode())
+                        if "deckEBT" in newdata.keys():
+                            # Pode escolher e pode trocar e baralha sempre
+                            deck = data["deckAfterEBT"]
+                            self.temporaryDeck = self.doTheEBT(deck)
+                    if "senddecktoclient" in data.decode('utf-8'):
+                        user = data.decode('utf-8').split(":")
+                        deckJson = json.dumps({"deckAfterEBT": self.temporaryDeck})
+                        self.playersInTable[user][0].send(deckJson.encode())
+                    if "senddecktoserver" in data.decode('utf-8'):
+                        deckJson = json.dumps({"deckAfterEBT": self.temporaryDeck})
+                        self.serverSocket.send(deckJson.encode())
                     if not data:
                         continue
                 else:
@@ -296,6 +320,41 @@ class Client:
             #    print("Exception: "+str(e))
             #    self.clientDisconnect = True
             #    self.serverSocket.close()
+
+    def doTheEBT(self, deck):
+        action = random.randint(1, 100)
+        # print("A:"+str(action) + " E:" + str(self.probEscolha) + " T:" + str(self.probTroca) +
+        # " B:" + str(self.probBaralha))
+        # Escolher uma carta
+        if action <= self.probChoice:
+            if len(self.hand) < 13:
+                card = random.randint(0, 51)
+                while deck[card] == [0, 0]:
+                    card = random.randint(0, 51)
+                self.hand.append(deck[card])
+                deck[card] = (0, 0)
+                # deckJson = json.dumps({"deckAfterEBT": deck})
+                # self.clientSocket.send(deckJson.encode())
+        # Troca de cartas
+        change = True
+        while change:
+            change = False
+            action = random.randint(1, 100)
+            if action <= self.probSwitch:
+                if len(self.hand) != 0:
+                    switch = random.randint(0, len(self.hand))
+                    card = random.randint(0, 51)
+                    while deck[card] == [0, 0]:
+                        card = random.randint(0, 51)
+                    self.hand.append(deck[card])
+                    deck[card] = self.hand[switch]
+                    del self.hand[switch]
+                    # deckJson = json.dumps({"deckAfterEBT": deck})
+                    # self.clientSocket.send(deckJson.encode())
+                    change = True
+        # BARALHAR
+        deck = self.shuffle(deck)
+        return deck
 
     def validateSignature(self, clientPubKey, data, signature):
         try:
