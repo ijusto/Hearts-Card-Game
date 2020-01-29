@@ -360,7 +360,7 @@ class Client:
             change = False
             action = random.randint(1, 100)
             if action <= self.probSwitch:
-                if len(self.hand) != 0:
+                if len(self.hand) != 0 and not all(card == deck[0] for card in deck):
                     switch = random.randint(0, len(self.hand))
                     card = random.randint(0, 51)
                     while deck[card] == [0, 0]:

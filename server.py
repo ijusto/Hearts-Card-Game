@@ -566,6 +566,7 @@ class Server:
                         for user in lst:
                             for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                 if user_name == sendtorandom:
+                                    print("here")
                                     user_socket.send(bytes('senddecktoserver', 'utf-8'))
                                     dataJson = user_socket.recv(1024)
                                     objectJson = json.loads(dataJson.decode())
@@ -573,11 +574,12 @@ class Server:
                                     self.decks[table_num] = dataAfterEBT
                                     print(self.decks[table_num])
                 time.sleep(0.05)
-            print("here")
+            print("here2")
 
             #Pedaço de codigo a eliminar
             # All players have shuffled it
             # Send for each player. Each player can choose a card, shuffle again or switch a card
+            '''
             while not all(card == self.decks[numTable][0] for card in self.decks[numTable]):
                 for table_num, lst in self.tables.items():
                     if table_num == numTable:
@@ -590,6 +592,7 @@ class Server:
                                     objectJson = json.loads(dataJson.decode())
                                     dataAfterEBT = objectJson['deckAfterEBT']
                                     self.decks[table_num] = dataAfterEBT
+            '''
 
             # Show hands
             for table_num, lst in self.tables.items():
