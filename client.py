@@ -121,7 +121,7 @@ class Client:
         self.serverSocket.connect((address, 10002))
 
         # Probabilidade do client escolher, trocar e baralhar
-        self.probChoice = random.randint(1, 20)
+        self.probChoice = random.randint(1, 90)
         self.probSwitch = random.randint(1, 50)
 
         self.flagTurn = True
@@ -251,20 +251,21 @@ class Client:
                         self.totalPoints += int(data.decode('utf-8').split(" ")[2])
                     #CODIGO NAO TESTADO
                     if "recvdeckfromserver" in data.decode('utf-8'):
-                        data = json.loads(self.serverSocket.recv(1024).decode())
-                        if "deckEBT" in data.keys():
-                            # Pode escolher e pode trocar e baralha sempre
-                            deck = data["deckEBT"]
+                        print("here")
+                        newjsondata = self.serverSocket.recv(1024).decode()
+                        newdata = json.loads(newjsondata)
+                        if "deckEBT" in newdata.keys():
+                            deck = newdata["deckEBT"]
                             self.temporaryDeck = self.doTheEBT(deck)
                     if "recvdeckfromclient" in data.decode('utf-8'):
-                        user = data.decode('utf-8').split(":")
+                        user = data.decode('utf-8').split(":")[1]
+                        print(user)
                         newdata = json.loads(self.playersInTable[user][0].recv(1024).decode())
-                        if "deckEBT" in newdata.keys():
-                            # Pode escolher e pode trocar e baralha sempre
-                            deck = data["deckAfterEBT"]
+                        if "deckAfterEBT" in newdata.keys():
+                            deck = newdata["deckAfterEBT"]
                             self.temporaryDeck = self.doTheEBT(deck)
                     if "senddecktoclient" in data.decode('utf-8'):
-                        user = data.decode('utf-8').split(":")
+                        user = data.decode('utf-8').split(":")[1]
                         deckJson = json.dumps({"deckAfterEBT": self.temporaryDeck})
                         self.playersInTable[user][0].send(deckJson.encode())
                     if "senddecktoserver" in data.decode('utf-8'):
@@ -280,6 +281,7 @@ class Client:
                         deckJson = json.dumps({"deckShuffled": deck})
                         self.serverSocket.send(deckJson.encode())
                     elif "deckEBT" in data.keys():
+                        print("here2")
                         # Pode escolher e pode trocar e baralha sempre
                         deck = data["deckEBT"]
                         action = random.randint(1, 100)
@@ -322,15 +324,20 @@ class Client:
             #    self.serverSocket.close()
 
     def doTheEBT(self, deck):
+        print("Deck: "+str(deck))
         action = random.randint(1, 100)
         # print("A:"+str(action) + " E:" + str(self.probEscolha) + " T:" + str(self.probTroca) +
         # " B:" + str(self.probBaralha))
         # Escolher uma carta
+        print("Action:"+str(action))
         if action <= self.probChoice:
+            print("Escolha")
             if len(self.hand) < 13:
                 card = random.randint(0, 51)
                 while deck[card] == [0, 0]:
                     card = random.randint(0, 51)
+
+                print("Card"+str(deck[card]))
                 self.hand.append(deck[card])
                 deck[card] = (0, 0)
                 # deckJson = json.dumps({"deckAfterEBT": deck})

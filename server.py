@@ -534,9 +534,12 @@ class Server:
                                 if user_name == sendtorandom:
                                     user_socket.send(bytes('recvdeckfromserver', 'utf-8'))
                                     data = json.dumps({"deckEBT": self.decks[table_num]})
+                                    time.sleep(0.05)
                                     user_socket.send(data.encode())
-                iterationNUM = random.randint(2,100)
+                time.sleep(0.1)
+                iterationNUM = random.randint(2, 100)
                 iterationRN = 0
+                print("iterationNUM" + str(iterationNUM))
                 while iterationRN < iterationNUM:
                     sendtorandom2 = sendtorandom
                     while sendtorandom2 == sendtorandom:
@@ -547,14 +550,17 @@ class Server:
                                 for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                     if user_name == sendtorandom2:
                                         user_socket.send(bytes('recvdeckfromclient:'+sendtorandom, 'utf-8'))
+                    time.sleep(0.05)
                     for table_num, lst in self.tables.items():
                         if table_num == numTable:
                             for user in lst:
                                 for (user_socket, user_address), (user_name, user_pubkey) in user.items():
                                     if user_name == sendtorandom:
                                         user_socket.send(bytes('senddecktoclient:'+sendtorandom2, 'utf-8'))
+                    time.sleep(0.1)
                     sendtorandom = sendtorandom2
                     iterationRN += 1
+                    print("iterationRN"+str(iterationRN))
                 for table_num, lst in self.tables.items():
                     if table_num == numTable:
                         for user in lst:
@@ -565,7 +571,9 @@ class Server:
                                     objectJson = json.loads(dataJson.decode())
                                     dataAfterEBT = objectJson['deckAfterEBT']
                                     self.decks[table_num] = dataAfterEBT
-
+                                    print(self.decks[table_num])
+                time.sleep(0.05)
+            print("here")
 
             #Pedaço de codigo a eliminar
             # All players have shuffled it
