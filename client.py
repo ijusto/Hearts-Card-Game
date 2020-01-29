@@ -11,11 +11,22 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
 from EntityRSAKeyManagement import EntityRSAKeyManagement
 from cryptography.hazmat.primitives import serialization
+import string
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from ellipticCurveDiffieHellman import EllipticCurveDiffieHellman
 
 class Client:
+    ecdh = EllipticCurveDiffieHellman()
+    ecdh.generateExchangeKeys()
+    clientPrivKeyEC = ecdh.exchange_private_key
+    clientPubKeyEC = ecdh.exchange_public_key
+
+    # The PBKDF2 generator of Python receives as input the number of bytes to generate, instead of bits
+    pwd = ''.join(random.choice(string.ascii_lowercase) for i in range(20))
+    salt = b'\x00'
+    kdf = PBKDF2HMAC(hashes.SHA1(), 16, salt, 1000, default_backend())
     # Generate a private key for use in the deck encryption
-    clientPrivKeyEC = ec.generate_private_key(ec.SECP384R1(), default_backend())
-    clientPubKeyEC = clientPrivKeyEC.public_key()
+    secretKeyDeck = kdf.derive(bytes(pwd, 'utf-8'))
 
     # ipv4 tcp socket
     serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -185,7 +196,7 @@ class Client:
                     print(validate)
                     if validate == "Verification succeeded":
                         self.playersInTable[user].append(pubkeyEC)
-                        shared_key = self.sharedKeyECDHE(pubkeyEC)
+                        shared_key = self.ecdh.sharedKeyECDHE(pubkeyEC)
                         self.playersInTable[user].append(shared_key)
                     else:
                         print("fazer algo")
@@ -233,6 +244,7 @@ class Client:
                         self.serverSocket.send(self.cipherMsgToServer(pemCC))
                         self.serverSocket.send(self.cipherMsgToServer(pemRSA))
                         self.decrypt = True
+
                     if "HAND" in data.decode('utf-8'):
                         print(self.printHand())
                     if "started the round" in data.decode('utf-8'):
@@ -375,6 +387,3 @@ class Client:
         self.rsaKeyManagement.generateRSAKey()
         self.clientPrivKeyRSA = self.rsaKeyManagement.getRSAPrivKey()
         self.clientPubKeyRSA = self.rsaKeyManagement.getRSAPubKey()
-
-    def sharedKeyECDHE(self, peer_public_key):
-        return self.clientPrivKeyEC.exchange(ec.ECDH(), peer_public_key)

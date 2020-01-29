@@ -13,10 +13,7 @@ from cryptography.hazmat.primitives import padding
 
 class EllipticCurveDiffieHellman:
 
-    def __init__(self, ccprivKey, ccpubKey, ccpubKeyOtherEntity):
-        self.ccprivKey = ccprivKey
-        self.ccpubKey = ccpubKey
-        self.ccpubKeyOtherEntity = ccpubKeyOtherEntity
+    def __init__(self):
         self.exchange_private_key = None
         self.exchange_public_key = None
         self.other_exchange_public_key = None
@@ -41,6 +38,7 @@ class EllipticCurveDiffieHellman:
         # Perform key derivation.
         derived_key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=b'handshake data',
                            backend=default_backend()).derive(shared_key)
+        return shared_key
 
     def generateExchangeKeys(self):
         # Generate a private key for use in the exchange.
