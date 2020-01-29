@@ -36,6 +36,8 @@ class EntityRSAKeyManagement:
         return self.rsaDeciphering(msg, otherEntityPubKey)
 
     def rsaCiphering(self, msg, key):
+        if isinstance(msg, str):
+            msg = bytes(msg, 'utf-8')
         # Calculate the maximum amount of data we can encrypt with OAEP + SHA256
         maxLenG = (key.key_size // 8) - 2 * hashes.SHA256.digest_size - 2
         maxLen = maxLenG
@@ -58,6 +60,8 @@ class EntityRSAKeyManagement:
         return ciphertext
 
     def rsaDeciphering(self, msg, key):
+        if isinstance(msg, str):
+            msg = bytes(msg, 'utf-8')
         maxLenG = 512
         maxLen = maxLenG
         minLen = 0
