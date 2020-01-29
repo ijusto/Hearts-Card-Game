@@ -325,51 +325,6 @@ class Client:
                         self.serverSocket.send(deckJson.encode())
                     if not data:
                         continue
-                else:
-                    data = json.loads(data.decode())
-                    if "deckShuffle" in data.keys():
-                        deck = data["deckShuffle"]
-                        deck = self.shuffle(deck)
-                        deckJson = json.dumps({"deckShuffled": deck})
-                        self.serverSocket.send(deckJson.encode())
-                    elif "deckEBT" in data.keys():
-                        print("here2")
-                        # Pode escolher e pode trocar e baralha sempre
-                        deck = data["deckEBT"]
-                        action = random.randint(1, 100)
-                        # print("A:"+str(action) + " E:" + str(self.probEscolha) + " T:" + str(self.probTroca) +
-                        # " B:" + str(self.probBaralha))
-                        # Escolher uma carta
-                        if action <= self.probChoice:
-                            if len(self.hand) < 13:
-                                card = random.randint(0, 51)
-                                while deck[card] == [0, 0]:
-                                    card = random.randint(0, 51)
-                                self.hand.append(deck[card])
-                                deck[card] = (0, 0)
-                                # deckJson = json.dumps({"deckAfterEBT": deck})
-                                # self.clientSocket.send(deckJson.encode())
-                        # Troca de cartas
-                        change = True
-                        while change:
-                            change = False
-                            action = random.randint(1, 100)
-                            if action <= self.probSwitch:
-                                if len(self.hand) != 0:
-                                    switch = random.randint(0, len(self.hand))
-                                    card = random.randint(0, 51)
-                                    while deck[card] == [0, 0]:
-                                        card = random.randint(0, 51)
-                                    self.hand.append(deck[card])
-                                    deck[card] = self.hand[switch]
-                                    del self.hand[switch]
-                                    # deckJson = json.dumps({"deckAfterEBT": deck})
-                                    # self.clientSocket.send(deckJson.encode())
-                                    change = True
-                        # BARALHAR
-                        deck = self.shuffle(deck)
-                        deckJson = json.dumps({"deckAfterEBT": deck})
-                        self.serverSocket.send(deckJson.encode())
             #except Exception as e:
             #    print("Exception: "+str(e))
             #    self.clientDisconnect = True
