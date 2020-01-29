@@ -173,6 +173,8 @@ class Client:
                     pemCC = self.playersInTable[user][0].recv(1024)
                     pubkeyCC = serialization.load_pem_public_key(pemCC, backend=default_backend())
                     self.playersInTable[user].append(pubkeyCC)
+                    self.playersInTable[user][0].send(bytes("assina ai", 'utf-8'))
+                    print(self.playersInTable[user][0].recv(1024).decode())
                 elif "sending" in data:
                     user = data.split(":")[1]
                     pemCC = self.cc.pubKey.public_bytes(
@@ -180,6 +182,8 @@ class Client:
                         format=serialization.PublicFormat.SubjectPublicKeyInfo
                     )
                     self.playersInTable[user][0].send(pemCC)
+                    self.playersInTable[user][0].recv(1024).decode()
+                    self.playersInTable[user][0].send(bytes("here", 'utf-8'))
                 else:
                     print(data)
             else:
